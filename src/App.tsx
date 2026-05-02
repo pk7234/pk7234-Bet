@@ -272,6 +272,7 @@ export default function App() {
       // If we switched to local engine, don't attempt fetch
       if (!apiAvailable) {
         runEngine();
+        setIsSynced(true);
         return;
       }
 
@@ -313,12 +314,12 @@ export default function App() {
                 }
               }
 
-              if (!statusChanged && !multChanged && !timerChanged && !historyUpdated && isSynced) {
-                return prev;
-              }
-              
               if (historyUpdated) {
                 localStorage.setItem('aviator_history', JSON.stringify(mergedHistory));
+              }
+
+              if (!statusChanged && !multChanged && !timerChanged && !historyUpdated && isSynced) {
+                return prev;
               }
 
               return {
