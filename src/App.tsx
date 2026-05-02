@@ -97,22 +97,101 @@ export default function App() {
 
   const formatCurrency = (val: number) => `${currency} ${val.toFixed(2)}`;
 
-  // Poll for game state
+  // Client-Side Engine Fallback (for static platforms like Cloudflare)
+  const [apiAvailable, setApiAvailable] = useState(true);
+
   useEffect(() => {
-    const fetchState = async () => {
+    let interval: NodeJS.Timeout;
+    
+    const runEngine = () => {
+      setGameState(prev => {
+        const now = Date.now();
+        
+        // Initial state
+        if (!prev) {
+          return {
+            status: GameStatus.WAITING,
+            currentMultiplier: 1.0,
+            startTime: now,
+            crashPoint: 1.0 + Math.pow(Math.random(), 2) * 50,
+            history: [],
+            timer: 5
+          };
+        }
+
+        const elapsed = (now - prev.startTime) / 1000;
+
+        if (prev.status === GameStatus.WAITING) {
+          const remaining = Math.max(0, 5 - Math.floor(elapsed));
+          if (remaining === 0) {
+            return {
+              ...prev,
+              status: GameStatus.FLYING,
+              startTime: now,
+              timer: 0,
+              currentMultiplier: 1.0
+            };
+          }
+          return { ...prev, timer: remaining };
+        }
+
+        if (prev.status === GameStatus.FLYING) {
+          const newMultiplier = Math.pow(1.06, elapsed); 
+          
+          if (newMultiplier >= prev.crashPoint) {
+            const newHistory = [prev.crashPoint, ...prev.history].slice(0, 50);
+            return {
+              ...prev,
+              status: GameStatus.CRASHED,
+              currentMultiplier: prev.crashPoint,
+              startTime: now,
+              history: newHistory
+            };
+          }
+          return { ...prev, currentMultiplier: newMultiplier };
+        }
+
+        if (prev.status === GameStatus.CRASHED) {
+          if (elapsed >= 3) {
+            return {
+              ...prev,
+              status: GameStatus.WAITING,
+              currentMultiplier: 1.0,
+              startTime: now,
+              crashPoint: 1.0 + Math.pow(Math.random(), 3) * 100,
+              timer: 5
+            };
+          }
+        }
+
+        return prev;
+      });
+    };
+
+    const poll = async () => {
+      if (!apiAvailable) {
+        runEngine();
+        return;
+      }
+
       try {
         const res = await fetch('/api/game-state');
-        if (!res.ok) throw new Error('API down');
-        const data = await res.json();
-        setGameState(data);
+        if (res.ok) {
+          const data = await res.json();
+          setGameState(data);
+        } else {
+          setApiAvailable(false);
+          runEngine();
+        }
       } catch (err) {
-        console.error('Failed to fetch game state', err);
+        setApiAvailable(false);
+        runEngine();
       }
     };
 
-    const interval = setInterval(fetchState, 100);
+    interval = setInterval(poll, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [apiAvailable]);
 
   // Reset bets on crash
   useEffect(() => {

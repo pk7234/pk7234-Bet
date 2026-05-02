@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ------------------------------------------------------------
+    // GLOBAL HELPERS
+    // ------------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // ------------------------------------------------------------
+    // ENTITY VALIDATORS
+    // ------------------------------------------------------------
+
+    function isValidUser(data) {
+      return data.email is string && data.email.size() <= 100 &&
+             data.balance is number && data.balance >= 0 &&
+             data.role in ['user', 'admin'] &&
+             data.phoneNumber is string && data.phoneNumber.size() <= 20;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.type in ['deposit', 'withdrawal'] &&
+             data.amount is number && data.amount > 0 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 256)) &&
+             (data.screenshotUrl == null || (data.screenshotUrl is string && data.screenshotUrl.size() <= 1024));
+    }
+
+    // ------------------------------------------------------------
+    // DEFAULT DENY
+    // ------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------
+    // COLLECTIONS
+    // ------------------------------------------------------------
+
+    match /users/{userId} {
+      // Users can read their own profile, Admins can read all
+      allow get: if isOwner(userId) || isAdmin();
+      
+      // Allow listing users for admin panel
+      allow list: if isAdmin();
+
+      // Creation: Only allowed if user is setting their own profile and NOT hacking roles
+      allow create: if isOwner(userId) && 
+                      isValidUser(incoming()) && 
+                      incoming().role == 'user' &&
+                      incoming().createdAt == request.time;
+
+      // Update: Users can update their balance (betting) OR admin can update anything
+      allow update: if (
+        isOwner(userId) && 
+        isValidUser(incoming()) && 
+        incoming().role == existing().role && // Cannot change identity
+        incoming().email == existing().email && // Cannot change email
+        incoming().phoneNumber == existing().phoneNumber && // Cannot change phone
+        incoming().diff(existing()).affectedKeys().hasOnly(['balance']) // Only balance can change (for bets)
+      ) || (
+        isAdmin() && isValidUser(incoming())
+      );
+    }
+
+    match /transactions/{transId} {
+      // Admins see all, users see their own
+      allow get: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || (resource.data.userId == request.auth.uid));
+
+      // Create: Users can create their own pending transactions
+      allow create: if isSignedIn() && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().status == 'pending' &&
+                      isValidTransaction(incoming()) &&
+                      incoming().createdAt == request.time;
+
+      // Update: Only Admins can approve/reject
+      allow update: if isAdmin() && 
+                      isValidTransaction(incoming()) &&
+                      existing().status == 'pending' && // Only pending can be changed
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'processedAt']);
+      
+      allow delete: if false; // Transactions are immutable audit logs
+    }
+  }
+}
