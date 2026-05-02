@@ -163,7 +163,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
               {type === 'deposit' ? (
                 <>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Transaction ID</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Transaction ID</label>
                     <div className="relative">
                       <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                       <input
@@ -178,7 +178,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Screenshot (Upload Proof)</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Screenshot (Upload Proof)</label>
                     <div className="relative group">
                       <div className="w-full bg-black/40 border-2 border-dashed border-white/5 rounded-xl p-4 flex flex-col items-center justify-center hover:border-accent-blue/30 transition-all relative overflow-hidden">
                         {imagePreview ? (

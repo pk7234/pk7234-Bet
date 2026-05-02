@@ -844,10 +844,10 @@ export default function App() {
                 <h2 className="text-3xl font-black italic tracking-tighter uppercase mb-2">Refer & Earn</h2>
                 <p className="text-gray-400 text-sm mb-8 px-8">Invite your friends to Aviator Pro and earn up to 5% of their total bets for life!</p>
                 
-                <div className="bg-black/40 rounded-xl p-4 border border-white/5 flex items-center justify-between gap-4 group">
-                   <div className="flex-1 text-left">
+                <div className="bg-black/40 rounded-xl p-3 lg:p-4 border border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 group">
+                   <div className="flex-1 text-left min-w-0">
                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1 px-1">Your Referral Link</span>
-                      <div className="text-xs font-mono text-[#2ecc71] truncate bg-black/60 px-3 py-2 rounded-lg border border-white/5 select-all">
+                      <div className="text-[10px] sm:text-xs font-mono text-[#2ecc71] truncate bg-black/60 px-3 py-2.5 rounded-lg border border-white/5 select-all overflow-hidden whitespace-nowrap">
                         https://aviator.pro/ref/{user?.uid?.slice(0, 8) || 'signup'}
                       </div>
                    </div>
@@ -856,9 +856,10 @@ export default function App() {
                         navigator.clipboard.writeText(`https://aviator.pro/ref/${user?.uid?.slice(0, 8) || 'signup'}`);
                         alert('Link copied to clipboard!');
                      }}
-                     className="bg-accent-blue p-3 rounded-xl text-white shadow-lg hover:scale-105 active:scale-95 transition-all"
+                     className="bg-accent-blue p-2.5 sm:p-3 rounded-xl text-white shadow-lg hover:bg-accent-blue/80 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0"
                    >
-                      <Copy className="w-5 h-5" />
+                      <Copy className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="sm:hidden text-[10px] font-bold uppercase tracking-[0.2em]">Copy Link</span>
                    </button>
                 </div>
 
