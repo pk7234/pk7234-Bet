@@ -2,9 +2,25 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Firebase Setup
+const firebaseConfig = {
+  apiKey: "AIzaSyDaop8dIauOmuiQn5tAFnRS9yflmHgYdWU",
+  authDomain: "aviator-fe35c.firebaseapp.com",
+  projectId: "aviator-fe35c",
+  storageBucket: "aviator-fe35c.firebasestorage.app",
+  messagingSenderId: "107662801014",
+  appId: "1:107662801014:web:f4ca9571e5ae65229b8757",
+  measurementId: "G-T5J56RV4SD"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
 async function startServer() {
   const app = express();
@@ -32,21 +48,30 @@ async function startServer() {
     startTime: Date.now(),
     crashPoint: 0,
     history: [],
-    timer: 5, // 5 seconds betting time (sync with client)
+    timer: 5,
   };
+
+  // Load initial history from Firestore
+  try {
+    const snap = await getDoc(doc(db, "game", "history"));
+    if (snap.exists()) {
+      state.history = snap.data().values || [];
+      console.log("Loaded history from Firestore:", state.history.length, "items");
+    }
+  } catch (e) {
+    console.error("Failed to load global history from Firebase:", e);
+  }
 
   function generateCrashPoint() {
     const r = Math.random();
-    // 68% house advantage logic (32% win rate)
-    if (r < 0.15) return 1.00; // 15% instant crash
-    if (r < 0.68) return Math.floor((1.01 + Math.random() * 0.79) * 100) / 100; // 53% crash under 1.80x
+    if (r < 0.15) return 1.00;
+    if (r < 0.68) return Math.floor((1.01 + Math.random() * 0.79) * 100) / 100;
     
-    // Remaining 32% are winning rounds for players
     if (r < 0.92) return Math.floor((1.81 + Math.pow(Math.random(), 2) * 12) * 100) / 100; 
     return Math.floor((10.0 + Math.pow(Math.random(), 4) * 90) * 100) / 100;
   }
 
-  function gameLoop() {
+  async function gameLoop() {
     const now = Date.now();
 
     if (state.status === GameStatus.WAITING) {
@@ -59,7 +84,6 @@ async function startServer() {
       }
     } else if (state.status === GameStatus.FLYING) {
       const elapsedSeconds = (now - state.startTime) / 1000;
-      // Real Aviator growth: 1.08 base for faster gameplay
       state.currentMultiplier = Math.floor(Math.pow(1.08, elapsedSeconds) * 100) / 100;
       
       if (state.currentMultiplier >= state.crashPoint) {
@@ -67,6 +91,13 @@ async function startServer() {
         state.status = GameStatus.CRASHED;
         state.startTime = now;
         state.history = [state.crashPoint, ...state.history].slice(0, 50);
+        
+        // Persist to Firestore
+        try {
+          await setDoc(doc(db, "game", "history"), { values: state.history });
+        } catch (e) {
+          console.error("Failed to save history to Firebase:", e);
+        }
       }
     } else if (state.status === GameStatus.CRASHED) {
       state.timer = Math.max(0, 3 - Math.floor((now - state.startTime) / 1000));
@@ -78,7 +109,7 @@ async function startServer() {
     }
   }
 
-  setInterval(gameLoop, 33); // 30 FPS for high-speed responsiveness
+  setInterval(gameLoop, 33);
 
   app.get('/api/game-state', (req, res) => {
     res.json(state);

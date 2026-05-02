@@ -199,29 +199,40 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Screenshot (Upload Proof)</label>
-                    <div className="relative group">
-                      <div className="w-full bg-black/40 border-2 border-dashed border-white/5 rounded-xl p-4 flex flex-col items-center justify-center hover:border-accent-blue/30 transition-all relative overflow-hidden">
-                        {imagePreview ? (
-                          <div className="relative w-full aspect-video">
-                            <img src={imagePreview} className="w-full h-full object-cover rounded-lg" alt="Preview" />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Camera className="w-6 h-6 text-white" />
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <Camera className="w-8 h-8 text-gray-600 mb-2" />
-                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Browse Gallery / Click Photo</span>
-                          </>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                          required={!screenshotUrl}
-                        />
-                      </div>
+                    <div className="relative">
+                      {!imagePreview ? (
+                        <div className="w-full bg-black/40 border-2 border-dashed border-white/5 rounded-xl p-6 flex flex-col items-center justify-center hover:border-accent-blue/30 transition-all cursor-pointer group">
+                           <Camera className="w-8 h-8 text-gray-600 mb-2 group-hover:text-accent-blue transition-colors" />
+                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Select Payment Proof</span>
+                           <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            required={!screenshotUrl}
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-black/40 border border-white/5 rounded-xl flex items-center gap-4">
+                           <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                              <img src={imagePreview} className="w-full h-full object-cover" alt="Proof" />
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-black text-[#2ecc71] uppercase tracking-widest mb-1">Image Selected</div>
+                              <div className="text-[9px] text-gray-500 truncate">payment_proof_shot.jpg</div>
+                           </div>
+                           <button 
+                             type="button"
+                             onClick={() => {
+                               setScreenshotUrl('');
+                               setImagePreview(null);
+                             }}
+                             className="p-2 hover:bg-accent-red/20 text-accent-red rounded-lg transition-colors"
+                           >
+                              <X className="w-4 h-4" />
+                           </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>

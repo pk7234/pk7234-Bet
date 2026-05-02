@@ -37,13 +37,22 @@ const generateCrashPoint = () => {
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(() => {
     // Try to load history from local storage as a fallback for screen refreshes
-    const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('aviator_history') : null;
+    let savedHistory: number[] = [];
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('aviator_history') : null;
+      if (stored) savedHistory = JSON.parse(stored);
+      if (!Array.isArray(savedHistory)) savedHistory = [];
+    } catch (e) {
+      console.error("Failed to parse history", e);
+      savedHistory = [];
+    }
+
     return {
       status: GameStatus.WAITING,
       currentMultiplier: 1.0,
       startTime: Date.now(),
       crashPoint: generateCrashPoint(),
-      history: savedHistory ? JSON.parse(savedHistory) : [],
+      history: savedHistory,
       timer: 5
     };
   });
@@ -238,12 +247,16 @@ export default function App() {
           const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
           
           if (actualMult >= prev.crashPoint) {
+            const newHistory = [prev.crashPoint, ...prev.history].slice(0, 50);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('aviator_history', JSON.stringify(newHistory));
+            }
             return {
               ...prev,
               status: GameStatus.CRASHED,
               currentMultiplier: prev.crashPoint,
               startTime: now,
-              history: [prev.crashPoint, ...prev.history].slice(0, 50)
+              history: newHistory
             };
           }
           // Avoid tiny micro-updates that don't visualy matter but trigger effects
@@ -281,59 +294,71 @@ export default function App() {
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1000); 
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // Increased timeout
         
-        const res = await fetch('/api/game-state', { signal: controller.signal });
+        const res = await fetch('/api/game-state', { 
+          signal: controller.signal,
+          headers: { 'Accept': 'application/json' }
+        });
         clearTimeout(timeoutId);
 
         if (res.ok) {
-          const data = await res.json();
-          if (data && data.status) {
-            setGameState(prev => {
-              const statusChanged = prev.status !== data.status;
-              const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
-              const timerChanged = prev.timer !== data.timer;
-              
-              const serverHistory = data.history || [];
-              let mergedHistory = prev.history;
-              let historyUpdated = false;
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await res.json();
+            if (data && data.status) {
+              setGameState(prev => {
+                const statusChanged = prev.status !== data.status;
+                const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
+                const timerChanged = prev.timer !== data.timer;
+                
+                const serverHistory = data.history || [];
+                let mergedHistory = prev.history;
+                let historyUpdated = false;
 
-              if (serverHistory.length > 0) {
-                // If top item is different, we definitely have new rounds
-                if (mergedHistory.length === 0 || serverHistory[0] !== mergedHistory[0]) {
-                  const newItems: number[] = [];
-                  for (const h of serverHistory) {
-                    if (mergedHistory.length > 0 && h === mergedHistory[0]) break;
-                    newItems.push(h);
-                  }
-                  
-                  if (newItems.length > 0) {
-                    mergedHistory = [...newItems, ...mergedHistory].slice(0, 50);
-                    historyUpdated = true;
+                if (serverHistory.length > 0) {
+                  if (mergedHistory.length === 0 || serverHistory[0] !== mergedHistory[0]) {
+                    const newItems: number[] = [];
+                    for (const h of serverHistory) {
+                      if (mergedHistory.length > 0 && h === mergedHistory[0]) break;
+                      newItems.push(h);
+                    }
+                    
+                    if (newItems.length > 0) {
+                      mergedHistory = [...newItems, ...mergedHistory].slice(0, 50);
+                      historyUpdated = true;
+                    }
                   }
                 }
-              }
 
-              if (historyUpdated) {
-                localStorage.setItem('aviator_history', JSON.stringify(mergedHistory));
-              }
+                if (historyUpdated) {
+                  localStorage.setItem('aviator_history', JSON.stringify(mergedHistory));
+                }
 
-              if (!statusChanged && !multChanged && !timerChanged && !historyUpdated && isSynced) {
-                return prev;
-              }
+                if (!statusChanged && !multChanged && !timerChanged && !historyUpdated && isSynced) {
+                  return prev;
+                }
 
-              return {
-                ...data,
-                history: mergedHistory
-              };
-            });
+                return {
+                  ...data,
+                  history: mergedHistory
+                };
+              });
+              setIsSynced(true);
+            }
+          } else {
+            console.warn("API returned non-JSON response");
+            setApiAvailable(false);
             setIsSynced(true);
           }
         } else {
           setApiAvailable(false);
+          setIsSynced(true);
         }
       } catch (err) {
+        console.error("Polling error:", err);
         setApiAvailable(false);
+        setIsSynced(true);
       } finally {
         isPollingRef.current = false;
       }
