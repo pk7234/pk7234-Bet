@@ -57,9 +57,8 @@ async function startServer() {
       }
     } else if (state.status === GameStatus.FLYING) {
       const elapsedSeconds = (now - state.startTime) / 1000;
-      // Real Aviator growth: starts slow, accelerates
-      // Standard formula adjustment
-      state.currentMultiplier = Math.floor(Math.pow(1.06, elapsedSeconds) * 100) / 100;
+      // Real Aviator growth: 1.08 base for faster gameplay
+      state.currentMultiplier = Math.floor(Math.pow(1.08, elapsedSeconds) * 100) / 100;
       
       if (state.currentMultiplier >= state.crashPoint) {
         state.currentMultiplier = state.crashPoint;
@@ -80,7 +79,7 @@ async function startServer() {
     }
   }
 
-  setInterval(gameLoop, 100);
+  setInterval(gameLoop, 33); // 30 FPS for high-speed responsiveness
 
   app.get('/api/game-state', (req, res) => {
     res.json(state);

@@ -203,7 +203,7 @@ export default function App() {
         if (prev.status === GameStatus.FLYING) {
           // Faster curve
           const newMultiplier = 1.0 + Math.pow(elapsed / 10, 1.25) * 10; 
-          const actualMult = Math.max(1.0, Math.pow(1.06, elapsed)); // Keep it smooth but display consistent with curve
+          const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); // Matches server 1.08x rate
           
           const displayedMultiplier = actualMult;
 
@@ -237,11 +237,15 @@ export default function App() {
       });
     };
 
+    let isPolling = false;
     const poll = async () => {
       if (!apiAvailable) {
         runEngine();
         return;
       }
+
+      if (isPolling) return;
+      isPolling = true;
 
       try {
         const res = await fetch('/api/game-state');
@@ -255,10 +259,12 @@ export default function App() {
       } catch (err) {
         setApiAvailable(false);
         runEngine();
+      } finally {
+        isPolling = false;
       }
     };
 
-    interval = setInterval(poll, 100);
+    interval = setInterval(poll, 33); // Match server frequency
     return () => clearInterval(interval);
   }, [apiAvailable]);
 
@@ -278,13 +284,16 @@ export default function App() {
     if (amount < 16) return alert('Minimum bet is Rs 16.00');
 
     if (balance >= amount) {
+      // Optimistic Update
+      setBalance(prev => prev - amount);
+      
       if (user) {
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
+        updateDoc(userRef, {
           balance: increment(-amount)
+        }).catch(() => {
+          setBalance(prev => prev + amount); // Rollback on failure
         });
-      } else {
-        setBalance(prev => prev - amount);
       }
 
       if (num === 1) {
@@ -298,30 +307,29 @@ export default function App() {
   const handleCashOut = async (num: 1 | 2) => {
     if (gameState?.status !== GameStatus.FLYING) return;
 
-    setTimeout(async () => {
-      // Re-verify flying status after short delay to prevent race conditions
-      if (gameState?.status !== GameStatus.FLYING) return;
+    // Remove artificial delay for "Full Fast" responsiveness
+    const bet = num === 1 ? bet1 : bet2;
+    if (!bet?.active) return;
 
-      const bet = num === 1 ? bet1 : bet2;
-      if (!bet?.active) return;
+    const win = Math.floor(bet.amount * gameState.currentMultiplier * 100) / 100;
+    
+    // Optimistic Update
+    setBalance(prev => prev + win);
 
-      const win = Math.floor(bet.amount * gameState.currentMultiplier * 100) / 100;
-      
-      if (user) {
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
-          balance: increment(win)
-        });
-      } else {
-        setBalance(prev => prev + win);
-      }
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      updateDoc(userRef, {
+        balance: increment(win)
+      }).catch(() => {
+        setBalance(prev => prev - win); // Rollback on failure
+      });
+    }
 
-      if (num === 1) setBet1(null);
-      else if (num === 2) setBet2(null);
+    if (num === 1) setBet1(null);
+    else if (num === 2) setBet2(null);
 
-      setLastWin(win);
-      setTimeout(() => setLastWin(null), 3000);
-    }, 150);
+    setLastWin(win);
+    setTimeout(() => setLastWin(null), 3000);
   };
 
   if (!gameState) return <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center text-white font-mono tracking-tighter uppercase">Initializing Engine...</div>;
@@ -339,12 +347,12 @@ export default function App() {
     return 10.0 + Math.pow(Math.random(), 3) * 90; // Rare high fly
   };
 
-  // Path Calculation
-  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 8)); 
-  const planeX = Math.min(94, 5 + (progress * 0.9));
-  const planeY = Math.max(10, 85 - (Math.pow(progress / 8, 1.8) * 6)); 
-  // flightRotation: Points more horizontally towards the right corner
-  const flightRotation = -10 - (progress / 10); 
+  // Path Calculation - Adjusted for high-speed feel
+  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 15)); 
+  const planeX = Math.min(96, 5 + (progress * 0.95));
+  const planeY = Math.max(8, 88 - (Math.pow(progress / 7, 2.0) * 8)); 
+  // flightRotation: More aggressive tilt
+  const flightRotation = -15 - (progress / 8); 
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
