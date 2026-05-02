@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Wallet, Camera, Link as LinkIcon, Send } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDoc } from 'firebase/firestore';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -13,22 +13,38 @@ interface TransactionModalProps {
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, type, userId }) => {
   const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountHolder, setAccountHolder] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) return setError('Please enter a valid amount');
+    if (!method) return setError('Please select a payment method');
     
+    if (type === 'deposit') {
+      if (!transactionId) return setError('Please enter transaction ID');
+      if (!screenshotUrl) return setError('Please provide screenshot Link/Proof');
+    } else {
+      if (!accountNumber) return setError('Please enter account number');
+      if (!accountHolder) return setError('Please enter account holder name');
+    }
+
     setError('');
     setLoading(true);
 
     try {
       if (type === 'withdrawal') {
         const userRef = doc(db, 'users', userId);
-        // Check balance would be better here, but for now we trust the flow
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists() && userSnap.data().balance < parseFloat(amount)) {
+          throw new Error('Insufficient balance');
+        }
+
         await updateDoc(userRef, {
           balance: increment(-parseFloat(amount))
         });
@@ -38,17 +54,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         userId,
         type,
         amount: parseFloat(amount),
-        transactionId,
-        screenshotUrl,
+        method,
+        transactionId: type === 'deposit' ? transactionId : null,
+        screenshotUrl: type === 'deposit' ? screenshotUrl : null,
+        accountNumber: type === 'withdrawal' ? accountNumber : null,
+        accountHolder: type === 'withdrawal' ? accountHolder : null,
         status: 'pending',
+        seen: false,
         createdAt: serverTimestamp()
       });
 
       onClose();
       alert('Request sent successfully!');
       setAmount('');
+      setMethod('');
       setTransactionId('');
       setScreenshotUrl('');
+      setAccountNumber('');
+      setAccountHolder('');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -77,7 +100,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
             
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black italic tracking-tighter text-white uppercase">
-                {type === 'deposit' ? 'Deposit Funds' : 'Request Withdrawal'}
+                {type === 'deposit' ? 'Deposit Funds' : 'Withdrawal Request'}
               </h2>
               <button 
                 onClick={onClose}
@@ -89,7 +112,23 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Amount ($)</label>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Payment Method</label>
+                <select
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-blue transition-colors appearance-none"
+                  required
+                >
+                  <option value="" className="bg-[#1b1b21]">Select Method</option>
+                  <option value="EasyPaisa" className="bg-[#1b1b21]">EasyPaisa</option>
+                  <option value="JazzCash" className="bg-[#1b1b21]">JazzCash</option>
+                  <option value="Bank" className="bg-[#1b1b21]">Bank Transfer</option>
+                  <option value="Crypto" className="bg-[#1b1b21]">Crypto (USDT)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Amount</label>
                 <div className="relative">
                    <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                    <input
@@ -103,35 +142,64 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Transaction ID / Link</label>
-                <div className="relative">
-                   <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                   <input
-                    type="text"
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-xl pl-12 pr-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-accent-blue transition-colors"
-                    placeholder="TX-8923..."
-                    required
-                  />
-                </div>
-              </div>
+              {type === 'deposit' ? (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Transaction ID</label>
+                    <div className="relative">
+                      <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="text"
+                        value={transactionId}
+                        onChange={(e) => setTransactionId(e.target.value)}
+                        className="w-full bg-black/40 border border-white/5 rounded-xl pl-12 pr-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-accent-blue transition-colors"
+                        placeholder="Enter Transaction ID"
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Screenshot URL</label>
-                <div className="relative">
-                   <Camera className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                   <input
-                    type="text"
-                    value={screenshotUrl}
-                    onChange={(e) => setScreenshotUrl(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-xl pl-12 pr-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-accent-blue transition-colors"
-                    placeholder="https://..."
-                    required
-                  />
-                </div>
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Screenshot (Link / Proof URL)</label>
+                    <div className="relative">
+                      <Camera className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="text"
+                        value={screenshotUrl}
+                        onChange={(e) => setScreenshotUrl(e.target.value)}
+                        className="w-full bg-black/40 border border-white/5 rounded-xl pl-12 pr-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-accent-blue transition-colors"
+                        placeholder="Link to your payment screenshot"
+                        required
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Account Number</label>
+                    <input
+                      type="text"
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-blue transition-colors"
+                      placeholder="Account or Wallet Number"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Account Holder Name</label>
+                    <input
+                      type="text"
+                      value={accountHolder}
+                      onChange={(e) => setAccountHolder(e.target.value)}
+                      className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-blue transition-colors"
+                      placeholder="Your Full Name"
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               {error && (
                 <div className="text-accent-red text-xs font-bold bg-accent-red/10 border border-accent-red/20 rounded-lg p-3">

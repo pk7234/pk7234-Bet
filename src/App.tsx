@@ -43,6 +43,35 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'history' | 'wallet' | 'invite' | 'profile'>('home');
 
+  // Dynamic Live Bets State
+  const [liveBets, setLiveBets] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (gameState?.status === GameStatus.WAITING) {
+      // Generate new fake live bets for the round
+      const newBets = Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
+        user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
+        amount: 16 + Math.floor(Math.random() * 500),
+        cashOutAt: 1.1 + Math.random() * 10,
+        cashedOut: false,
+        win: 0
+      }));
+      setLiveBets(newBets);
+    } else if (gameState?.status === GameStatus.FLYING) {
+      // Update bets that cash out at current multiplier
+      setLiveBets(prev => prev.map(bet => {
+        if (!bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt) {
+          return {
+            ...bet,
+            cashedOut: true,
+            win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100
+          };
+        }
+        return bet;
+      }));
+    }
+  }, [gameState?.status, gameState?.currentMultiplier]);
+
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -636,7 +665,7 @@ export default function App() {
           <div className="glass rounded-xl overflow-hidden flex flex-col h-[400px] lg:h-[720px]">
              <div className="p-3 border-b border-white/5 flex justify-between items-center bg-black/20">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-400">All Bets</span>
-                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white">458</span>
+                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white">{400 + liveBets.length}</span>
              </div>
              <div className="flex-1 overflow-y-auto custom-scrollbar bg-black/10">
                 <table className="w-full text-[11px] border-collapse">
@@ -649,15 +678,45 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-gray-400">
-                    {[...Array(30)].map((_, i) => (
-                      <tr key={i} className="hover:bg-white/5 transition-colors group">
-                        <td className="p-2 pl-3 font-medium group-hover:text-white">m***{400 + i}</td>
-                        <td className="text-right p-2 text-white/80">{formatCurrency(10 + i * 2.5)}</td>
+                    {/* User's Current Bets */}
+                    {(bet1?.active || bet2?.active) && (
+                      <>
+                        {bet1?.active && (
+                          <tr className="bg-accent-red/10 border-l-2 border-accent-red">
+                            <td className="p-2 pl-3 font-bold text-white">YOU</td>
+                            <td className="text-right p-2 text-white/90">{formatCurrency(bet1.amount)}</td>
+                            <td className="text-right p-2">-</td>
+                            <td className="text-right p-2">-</td>
+                          </tr>
+                        )}
+                        {bet2?.active && (
+                          <tr className="bg-accent-blue/10 border-l-2 border-accent-blue">
+                            <td className="p-2 pl-3 font-bold text-white">YOU</td>
+                            <td className="text-right p-2 text-white/90">{formatCurrency(bet2.amount)}</td>
+                            <td className="text-right p-2">-</td>
+                            <td className="text-right p-2">-</td>
+                          </tr>
+                        )}
+                      </>
+                    )}
+
+                    {liveBets.map((bet, i) => (
+                      <tr key={i} className={`hover:bg-white/5 transition-colors group ${bet.cashedOut ? 'bg-[#2ecc71]/5' : ''}`}>
+                        <td className="p-2 pl-3 font-medium group-hover:text-white">{bet.user}</td>
+                        <td className="text-right p-2 text-white/80">{formatCurrency(bet.amount)}</td>
                         <td className="text-right p-2">
-                          {i % 4 === 0 ? <span className="text-accent-blue font-bold italic">1.{20 + i}x</span> : <span className="opacity-20">-</span>}
+                          {bet.cashedOut ? (
+                            <span className="text-accent-blue font-bold italic">{bet.cashOutAt.toFixed(2)}x</span>
+                          ) : (
+                            <span className="opacity-20">-</span>
+                          )}
                         </td>
-                        <td className="text-right p-2">
-                          {i % 4 === 0 ? <span className="text-[#2ecc71] font-bold">{formatCurrency((10 + i * 2.5) * (1 + (20+i)/100))}</span> : <span className="opacity-20">-</span>}
+                        <td className="text-right p-2 font-bold">
+                          {bet.cashedOut ? (
+                            <span className="text-[#2ecc71]">{formatCurrency(bet.win)}</span>
+                          ) : (
+                            <span className="opacity-20">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}

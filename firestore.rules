@@ -47,8 +47,12 @@ service cloud.firestore {
              data.type in ['deposit', 'withdrawal'] &&
              data.amount is number && data.amount > 0 &&
              data.status in ['pending', 'approved', 'rejected'] &&
+             (data.method == null || (data.method is string && data.method.size() <= 50)) &&
              (data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 256)) &&
-             (data.screenshotUrl == null || (data.screenshotUrl is string && data.screenshotUrl.size() <= 1024));
+             (data.screenshotUrl == null || (data.screenshotUrl is string && data.screenshotUrl.size() <= 1024)) &&
+             (data.accountNumber == null || (data.accountNumber is string && data.accountNumber.size() <= 100)) &&
+             (data.accountHolder == null || (data.accountHolder is string && data.accountHolder.size() <= 100)) &&
+             (data.seen == null || data.seen is bool);
     }
 
     // ------------------------------------------------------------
@@ -100,11 +104,13 @@ service cloud.firestore {
                       isValidTransaction(incoming()) &&
                       incoming().createdAt == request.time;
 
-      // Update: Only Admins can approve/reject
+      // Update: Only Admins can approve/reject or mark as seen
       allow update: if isAdmin() && 
                       isValidTransaction(incoming()) &&
-                      existing().status == 'pending' && // Only pending can be changed
-                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'processedAt']);
+                      (
+                        (existing().status == 'pending' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'processedAt', 'seen'])) ||
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['seen']))
+                      );
       
       allow delete: if false; // Transactions are immutable audit logs
     }

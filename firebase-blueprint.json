@@ -19,11 +19,16 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
         "type": { "type": "string", "enum": ["deposit", "withdrawal"] },
         "amount": { "type": "number" },
+        "method": { "type": "string" },
         "transactionId": { "type": "string" },
         "screenshotUrl": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "accountHolder": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "seen": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "processedAt": { "type": "string", "format": "date-time" }
       },
