@@ -37,11 +37,10 @@ async function startServer() {
 
   function generateCrashPoint() {
     const r = Math.random();
-    // Improved logic for house edge and excitement balance
-    if (r < 0.08) return 1.0; // 8% instant crash
-    if (r < 0.6) return 1.0 + Math.random() * 1.6; // High frequency low crash (1x - 2.6x)
-    if (r < 0.95) return 2.0 + Math.pow(Math.random(), 1.5) * 15; // Mid crash (2x - 17x)
-    return 15.0 + Math.pow(Math.random(), 2.5) * 85; // Rare high fly (15x - 100x)
+    if (r < 0.08) return 1.0; 
+    if (r < 0.6) return 1.1 + Math.random() * 1.4; 
+    if (r < 0.92) return 2.5 + Math.pow(Math.random(), 2) * 12; 
+    return 15.0 + Math.pow(Math.random(), 3) * 85; 
   }
 
   function gameLoop() {

@@ -24,7 +24,22 @@ interface GameState {
 }
 
 export default function App() {
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const generateCrashPoint = () => {
+    const r = Math.random();
+    if (r < 0.08) return 1.0; 
+    if (r < 0.6) return 1.1 + Math.random() * 1.4; 
+    if (r < 0.92) return 2.5 + Math.pow(Math.random(), 2) * 12; 
+    return 15.0 + Math.pow(Math.random(), 3) * 85; 
+  };
+
+  const [gameState, setGameState] = useState<GameState>({
+    status: GameStatus.WAITING,
+    currentMultiplier: 1.0,
+    startTime: Date.now(),
+    crashPoint: generateCrashPoint(),
+    history: [],
+    timer: 5
+  });
   const [balance, setBalance] = useState(1000);
   
   // Bet 1 States
@@ -51,40 +66,30 @@ export default function App() {
     if (!gameState) return;
 
     if (gameState.status === GameStatus.WAITING && lastStatus !== GameStatus.WAITING) {
-      // Generate new fake live bets ONCE per round
+      // Round initialization
       const newBets = Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
         user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
         amount: 16 + Math.floor(Math.random() * 500),
-        cashOutAt: 1.1 + Math.pow(Math.random(), 2) * 5, // More realistic cashouts
+        cashOutAt: 1.1 + Math.pow(Math.random(), 2) * 5,
         cashedOut: false,
         win: 0
       }));
       setLiveBets(newBets);
       setLastStatus(GameStatus.WAITING);
-    } else if (gameState.status === GameStatus.FLYING) {
-      setLastStatus(GameStatus.FLYING);
-
-      // Periodically add new bets during flight if it's early
-      if (gameState.currentMultiplier < 1.5 && Math.random() > 0.8) {
-        setLiveBets(prev => [
-           ...prev,
-           {
-            user: `${['u', 'r', 'k', 'q'][Math.floor(Math.random() * 4)]}***${100 + Math.floor(Math.random() * 900)}`,
-            amount: 16 + Math.floor(Math.random() * 300),
-            cashOutAt: gameState.currentMultiplier + 1 + Math.random() * 3,
-            cashedOut: false,
-            win: 0
-           }
-        ].slice(-40));
+    } 
+    else if (gameState.status === GameStatus.FLYING) {
+      if (lastStatus !== GameStatus.FLYING) {
+        setLastStatus(GameStatus.FLYING);
       }
 
-      // Update bets that cash out at current multiplier
+      // Handle cashouts and new bets specifically for flying state
       setLiveBets(prev => {
-        const hasChanges = prev.some(bet => !bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt);
-        if (!hasChanges) return prev;
+        let hasChanges = false;
         
-        return prev.map(bet => {
+        // 1. Check for cashouts (high frequency but safe with bail-out)
+        const updatedBets = prev.map(bet => {
           if (!bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt) {
+            hasChanges = true;
             return {
               ...bet,
               cashedOut: true,
@@ -93,11 +98,28 @@ export default function App() {
           }
           return bet;
         });
+
+        // 2. Occasionally add new bets early on (only if something changed or random hit)
+        // Guard random injections to be very infrequent and only at start
+        if (gameState.currentMultiplier < 1.3 && Math.random() > 0.98) {
+          hasChanges = true;
+          updatedBets.push({
+            user: `${['u', 'r', 'k', 'q'][Math.floor(Math.random() * 4)]}***${100 + Math.floor(Math.random() * 900)}`,
+            amount: 16 + Math.floor(Math.random() * 300),
+            cashOutAt: gameState.currentMultiplier + 1 + Math.random() * 3,
+            cashedOut: false,
+            win: 0
+          });
+          if (updatedBets.length > 40) updatedBets.shift();
+        }
+
+        return hasChanges ? updatedBets : prev;
       });
-    } else if (gameState.status === GameStatus.CRASHED && lastStatus !== GameStatus.CRASHED) {
+    } 
+    else if (gameState.status === GameStatus.CRASHED && lastStatus !== GameStatus.CRASHED) {
       setLastStatus(GameStatus.CRASHED);
     }
-  }, [gameState?.status, gameState?.currentMultiplier]);
+  }, [gameState?.status, gameState?.currentMultiplier, lastStatus]);
 
   // Auth Listener
   useEffect(() => {
@@ -171,19 +193,6 @@ export default function App() {
     const runEngine = () => {
       setGameState(prev => {
         const now = Date.now();
-        
-        // Initial state
-        if (!prev) {
-          return {
-            status: GameStatus.WAITING,
-            currentMultiplier: 1.0,
-            startTime: now,
-            crashPoint: generateCrashPoint(),
-            history: [],
-            timer: 5
-          };
-        }
-
         const elapsed = (now - prev.startTime) / 1000;
 
         if (prev.status === GameStatus.WAITING) {
@@ -194,30 +203,26 @@ export default function App() {
               status: GameStatus.FLYING,
               startTime: now,
               timer: 0,
-              currentMultiplier: 1.0
+              currentMultiplier: 1.0,
+              crashPoint: generateCrashPoint()
             };
           }
           return { ...prev, timer: remaining };
         }
 
         if (prev.status === GameStatus.FLYING) {
-          // Faster curve
-          const newMultiplier = 1.0 + Math.pow(elapsed / 10, 1.25) * 10; 
-          const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); // Matches server 1.08x rate
+          const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
           
-          const displayedMultiplier = actualMult;
-
-          if (displayedMultiplier >= prev.crashPoint) {
-            const newHistory = [prev.crashPoint, ...prev.history].slice(0, 50);
+          if (actualMult >= prev.crashPoint) {
             return {
               ...prev,
               status: GameStatus.CRASHED,
               currentMultiplier: prev.crashPoint,
               startTime: now,
-              history: newHistory
+              history: [prev.crashPoint, ...prev.history].slice(0, 50)
             };
           }
-          return { ...prev, currentMultiplier: displayedMultiplier };
+          return { ...prev, currentMultiplier: actualMult };
         }
 
         if (prev.status === GameStatus.CRASHED) {
@@ -248,19 +253,25 @@ export default function App() {
       isPolling = true;
 
       try {
-        const res = await fetch('/api/game-state');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const res = await fetch('/api/game-state', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (res.ok) {
           const data = await res.json();
-          setGameState(data);
+          if (data && data.status) {
+            setGameState(data);
+          }
         } else {
           setApiAvailable(false);
-          runEngine();
         }
       } catch (err) {
         setApiAvailable(false);
-        runEngine();
       } finally {
         isPolling = false;
+        if (!apiAvailable) runEngine(); // Catch-up immediately if just turned off
       }
     };
 
@@ -332,27 +343,18 @@ export default function App() {
     setTimeout(() => setLastWin(null), 3000);
   };
 
-  if (!gameState) return <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center text-white font-mono tracking-tighter uppercase">Initializing Engine...</div>;
+  if (!gameState || !gameState.status) return <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center text-white font-mono tracking-tighter uppercase">Initializing Engine...</div>;
 
   const isInWaiting = gameState.status === GameStatus.WAITING;
   const isFlying = gameState.status === GameStatus.FLYING;
   const isCrashed = gameState.status === GameStatus.CRASHED;
 
-  // Better Randomness for Crash Points (with house edge)
-  const generateCrashPoint = () => {
-    const r = Math.random();
-    if (r < 0.05) return 1.0; // 5% chance of instant crash
-    if (r < 0.5) return 1.0 + Math.random() * 1.5; // High frequency low crash
-    if (r < 0.9) return 2.0 + Math.pow(Math.random(), 2) * 8; // Mid crash
-    return 10.0 + Math.pow(Math.random(), 3) * 90; // Rare high fly
-  };
-
-  // Path Calculation - Adjusted for high-speed feel
-  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 15)); 
-  const planeX = Math.min(96, 5 + (progress * 0.95));
-  const planeY = Math.max(8, 88 - (Math.pow(progress / 7, 2.0) * 8)); 
+  // Path Calculation - Adjusted for high-speed feel and better visible "climb"
+  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 20)); 
+  const planeX = Math.min(96, 5 + (progress * 1.2));
+  const planeY = Math.max(6, 92 - (Math.pow(progress / 5, 2.2) * 12)); 
   // flightRotation: More aggressive tilt
-  const flightRotation = -15 - (progress / 8); 
+  const flightRotation = -20 - (progress / 1.5); 
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
