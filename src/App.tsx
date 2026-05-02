@@ -276,67 +276,76 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30">
       {/* Top Bar */}
-      <header className="h-[50px] glass flex items-center justify-between px-6 sticky top-0 z-50 rounded-none border-t-0 border-x-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-accent-red rounded flex items-center justify-center shadow-[0_0_15px_rgba(255,59,59,0.4)]">
-            <Plane className="w-5 h-5 text-white fill-current" />
+      <header className="h-[50px] lg:h-[60px] glass flex items-center justify-between px-2 lg:px-6 sticky top-0 z-[100] rounded-none border-t-0 border-x-0 border-b border-white/5 bg-black/80 backdrop-blur-xl">
+        <div className="flex items-center gap-1.5 lg:gap-3">
+          <div className="w-7 h-7 lg:w-9 lg:h-9 bg-accent-red rounded flex items-center justify-center shadow-[0_0_15px_rgba(255,59,59,0.4)] shrink-0">
+            <Plane className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-current -rotate-45" />
           </div>
-          <span className="font-black text-xl italic tracking-tighter uppercase text-white">AVIATOR PR0</span>
+          <div className="flex flex-col lg:flex-row lg:items-baseline lg:gap-2">
+            <span className="font-black text-xs lg:text-xl italic tracking-tighter uppercase text-white leading-none">AVIATOR</span>
+            <span className="text-[7px] lg:text-[10px] font-black text-accent-red uppercase tracking-[0.2em] leading-none">PRO</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 lg:gap-4 shrink-0">
           {!user ? (
             <button 
               onClick={() => setShowAuthModal(true)}
-              className="px-4 py-1.5 bg-accent-red text-white text-xs font-black rounded-lg hover:bg-accent-red/80 transition-all uppercase tracking-widest shadow-[0_5px_15px_rgba(255,59,59,0.3)]"
+              className="px-2 lg:px-4 py-1.5 bg-accent-red text-white text-[9px] lg:text-xs font-black rounded-md hover:bg-accent-red/80 transition-all uppercase tracking-widest whitespace-nowrap shadow-[0_5px_15px_rgba(255,59,59,0.2)]"
             >
-              Sign Up / Login
+              SIGN UP
             </button>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 lg:gap-3">
               {isAdmin && (
                 <button 
                   onClick={() => setShowAdminPanel(true)}
-                  className="p-1.5 bg-accent-blue/10 text-accent-blue rounded-lg border border-accent-blue/20 hover:bg-accent-blue/20"
-                  title="Admin Panel"
+                  className="p-1.5 bg-accent-blue/10 text-accent-blue rounded-md border border-accent-blue/20 hover:bg-accent-blue/20"
                 >
-                  <Shield className="w-4 h-4" />
+                  <Shield className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
                 </button>
               )}
-              <div className="flex items-center gap-2 px-3 py-1 bg-black/40 rounded-full border border-white/10 group relative cursor-pointer" onClick={() => signOut(auth)}>
-                <div className="w-2 h-2 rounded-full bg-accent-blue" />
-                <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{user.email.split('@')[0]}</span>
-                <div className="absolute -bottom-8 left-0 w-full hidden group-hover:block bg-black/80 rounded px-2 py-1 text-[8px] text-white text-center">Logout</div>
+              <div 
+                className="hidden sm:flex items-center gap-2 px-3 py-1 bg-black/40 rounded-full border border-white/10 group relative cursor-pointer" 
+                onClick={() => signOut(auth)}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
+                <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest truncate max-w-[60px]">
+                  {user.email.split('@')[0]}
+                </span>
               </div>
             </div>
           )}
-          <div className="flex items-center gap-2 pl-4 pr-2 py-1 bg-black/40 rounded-full border border-white/10">
-            <div className="flex flex-col items-end mr-2">
-               <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-1">Balance</span>
-               <span className="text-sm font-bold text-[#2ecc71] tracking-tight leading-none">{formatCurrency(balance)}</span>
+
+          <div className="flex items-center gap-1 lg:gap-2 pl-2 lg:pl-4 pr-1 lg:pr-2 py-0.5 lg:py-1 bg-black/40 rounded-lg border border-white/10">
+            <div className="flex flex-col items-end mr-1 lg:mr-2">
+               <span className="text-[6px] lg:text-[8px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-0.5">Balance</span>
+               <span className="text-[10px] lg:text-sm font-bold text-[#2ecc71] tracking-tight leading-none whitespace-nowrap">
+                 {formatCurrency(balance)}
+               </span>
             </div>
             {user && (
-              <div className="flex gap-1 border-l border-white/5 pl-2">
+              <div className="flex gap-0.5 border-l border-white/5 pl-1 lg:pl-2">
                 <button 
                   onClick={() => setShowTransModal({ open: true, type: 'deposit' })}
                   className="p-1 text-[#2ecc71] hover:bg-[#2ecc71]/10 rounded transition-colors"
                 >
-                  <ArrowUpCircle className="w-4 h-4" />
+                  <ArrowUpCircle className="w-4 h-4 lg:w-5 lg:h-5" />
                 </button>
                 <button 
                   onClick={() => setShowTransModal({ open: true, type: 'withdrawal' })}
                   className="p-1 text-accent-red hover:bg-accent-red/10 rounded transition-colors"
                 >
-                  <ArrowDownCircle className="w-4 h-4" />
+                  <ArrowDownCircle className="w-4 h-4 lg:w-5 lg:h-5" />
                 </button>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold px-3 py-1 bg-accent-blue/10 rounded-lg text-accent-blue border border-accent-blue/20">
+          
+          <div className="hidden xs:flex items-center gap-1 text-[9px] lg:text-xs font-bold px-1.5 lg:px-3 py-1 bg-accent-blue/10 rounded-lg text-accent-blue border border-accent-blue/20">
              <span className="animate-pulse">●</span>
              <span>LIVE</span>
           </div>
-          <Settings className="w-5 h-5 text-gray-500 cursor-pointer hover:text-white transition-colors" />
         </div>
       </header>
 
@@ -371,7 +380,7 @@ export default function App() {
           </div>
 
           {/* Game Area */}
-          <div className="relative aspect-video lg:aspect-auto lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_80px_rgba(255,59,59,0.03)] min-h-[440px]">
+          <div className="relative aspect-[16/10] sm:aspect-video lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_80px_rgba(255,59,59,0.03)] min-h-[300px] lg:min-h-[440px]">
             {/* Grid Background */}
             <div className="absolute inset-0 opacity-[0.05] pointer-events-none" 
                  style={{ 
@@ -381,7 +390,7 @@ export default function App() {
             />
 
             {/* Flying Multiplier */}
-            <div className="z-10 text-center select-none">
+            <div className="z-10 text-center select-none px-4">
               <AnimatePresence mode="wait">
                 {isInWaiting && (
                   <motion.div 
@@ -390,8 +399,8 @@ export default function App() {
                     exit={{ opacity: 0, scale: 1.1 }}
                     className="flex flex-col items-center gap-2"
                   >
-                    <span className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.5em] mb-4 opacity-50">Next Flight Path Calculating</span>
-                    <span className="text-8xl lg:text-9xl font-black text-white italic drop-shadow-[0_0_30px_rgba(255,255,255,0.15)]">{gameState.timer}</span>
+                    <span className="text-gray-500 text-[8px] lg:text-[10px] font-bold uppercase tracking-[0.5em] mb-2 lg:mb-4 opacity-50">Next Flight Path Calculating</span>
+                    <span className="text-6xl lg:text-9xl font-black text-white italic drop-shadow-[0_0_30px_rgba(255,255,255,0.15)]">{gameState.timer}</span>
                   </motion.div>
                 )}
                 
@@ -401,7 +410,7 @@ export default function App() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="flex flex-col items-center"
                   >
-                    <span className="text-8xl lg:text-[120px] font-extrabold text-white tracking-tighter drop-shadow-[0_0_40px_rgba(255,59,59,0.4)] italic">
+                    <span className="text-5xl lg:text-[120px] font-extrabold text-white tracking-tighter drop-shadow-[0_0_40px_rgba(255,59,59,0.4)] italic">
                       {gameState.currentMultiplier.toFixed(2)}x
                     </span>
                   </motion.div>
@@ -413,10 +422,10 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col items-center"
                   >
-                    <div className="bg-accent-red px-8 py-2 rounded-xl mb-6 shadow-[0_10px_30px_rgba(255,59,59,0.5)]">
-                       <span className="text-white text-base font-black uppercase tracking-widest italic">FLEW AWAY!</span>
+                    <div className="bg-accent-red px-4 lg:px-8 py-1 lg:py-2 rounded-lg lg:rounded-xl mb-3 lg:mb-6 shadow-[0_10px_30px_rgba(255,59,59,0.5)]">
+                       <span className="text-white text-[10px] lg:text-base font-black uppercase tracking-widest italic leading-none block py-1">FLEW AWAY!</span>
                     </div>
-                    <span className="text-8xl lg:text-9xl font-extrabold text-accent-red italic drop-shadow-[0_0_30px_rgba(255,59,59,0.4)]">
+                    <span className="text-6xl lg:text-9xl font-extrabold text-accent-red italic drop-shadow-[0_0_30px_rgba(255,59,59,0.4)]">
                       {gameState.currentMultiplier.toFixed(2)}x
                     </span>
                   </motion.div>
@@ -510,21 +519,21 @@ export default function App() {
           </div>
 
           {/* Dual Controls Panel */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-4">
             {/* Bet Panel 1 */}
-            <div className="bg-[#1b1b21] rounded-2xl p-4 border border-[#2a2a32] shadow-2xl relative overflow-hidden flex gap-4">
+            <div className="bg-[#1b1b21] rounded-xl lg:rounded-2xl p-3 lg:p-6 border-l-4 border-accent-red shadow-2xl relative overflow-hidden flex gap-3 lg:gap-6">
                <div className="absolute top-0 left-0 w-1 h-full bg-accent-red" />
-               <div className="flex flex-col gap-3 w-32 shrink-0">
-                  <div className="flex gap-1">
-                    <button onClick={() => setBetAmount1(b => Math.max(1, b - 1))} className="bg-black/40 text-gray-400 p-1 rounded-md w-full text-[10px] border border-white/5 hover:text-white">-</button>
-                    <button onClick={() => setBetAmount1(b => b + 1)} className="bg-black/40 text-gray-400 p-1 rounded-md w-full text-[10px] border border-white/5 hover:text-white">+</button>
+               <div className="flex flex-col gap-2 lg:gap-4 w-28 lg:w-44 shrink-0">
+                  <div className="flex gap-1 lg:gap-2">
+                    <button onClick={() => setBetAmount1(b => Math.max(1, b - 1))} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
+                    <button onClick={() => setBetAmount1(b => b + 1)} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
                   </div>
-                  <div className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-2 text-center font-bold text-xl text-white">
+                  <div className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-2 lg:p-3 text-center font-bold text-lg lg:text-2xl text-white">
                     {betAmount1.toFixed(2)}
                   </div>
-                  <div className="grid grid-cols-2 gap-1">
+                  <div className="grid grid-cols-2 gap-1 lg:gap-2">
                     {[1, 5, 10, 50].map(v => (
-                      <button key={v} onClick={() => setBetAmount1(v)} className={`bg-white/5 rounded py-1.5 text-[10px] font-bold transition-all ${betAmount1 === v ? 'bg-accent-red text-white' : 'text-gray-400 hover:bg-white/10'}`}>
+                      <button key={v} onClick={() => setBetAmount1(v)} className={`bg-white/5 rounded py-1 lg:py-2 text-[9px] lg:text-xs font-bold transition-all ${betAmount1 === v ? 'bg-accent-red text-white shadow-[0_0_10px_rgba(255,59,59,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
                         {v.toFixed(2)}
                       </button>
                     ))}
@@ -534,31 +543,33 @@ export default function App() {
                   <button 
                     disabled={!isInWaiting || balance < betAmount1} 
                     onClick={() => handlePlaceBet(1)} 
-                    className={`flex-1 rounded-xl font-black text-2xl flex flex-col items-center justify-center transition-all active:scale-90 active:bg-[#1e7e34] ${
+                    className={`flex-1 rounded-xl font-black text-xl lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-90 ${
                       isInWaiting && balance >= betAmount1 
-                        ? 'bg-[#28a745] text-white shadow-[0_10px_20px_rgba(40,167,69,0.3)] cursor-pointer' 
-                        : 'bg-white/5 text-gray-600 cursor-not-allowed'
+                        ? 'bg-[#28a745] text-white shadow-[0_10px_20px_rgba(40,167,69,0.3)] cursor-pointer hover:bg-[#2ecc71]' 
+                        : 'bg-white/5 text-gray-600 cursor-not-allowed opacity-50'
                     }`}
                   >
-                    BET
-                    <span className="text-[12px] opacity-60 font-normal uppercase tracking-widest">{formatCurrency(betAmount1)}</span>
+                    <span className="leading-none mb-1">BET</span>
+                    <span className="text-[9px] lg:text-[14px] opacity-60 font-normal uppercase tracking-widest leading-none">
+                      {formatCurrency(betAmount1)}
+                    </span>
                   </button>
                 ) : (
                   <button 
                     disabled={!isFlying} 
                     onClick={() => handleCashOut(1)}
-                    className={`flex-1 rounded-xl font-black text-2xl flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    className={`flex-1 rounded-xl font-black text-xl lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
                       isFlying 
                         ? 'bg-[#f39c12] text-white shadow-[0_10px_20px_rgba(243,156,18,0.3)] cursor-pointer' 
                         : 'bg-white/5 text-gray-600'
                     }`}
                   >
-                    OUT
+                    <span className="leading-none mb-1">OUT</span>
                     {isFlying && (
                       <motion.span 
                         animate={{ scale: [1, 1.1, 1] }} 
                         transition={{ repeat: Infinity, duration: 0.5 }}
-                        className="text-[12px] text-white font-bold mt-1"
+                        className="text-[9px] lg:text-[14px] text-white font-bold"
                       >
                         {formatCurrency(bet1.amount * gameState.currentMultiplier)}
                       </motion.span>
@@ -568,19 +579,19 @@ export default function App() {
             </div>
 
             {/* Bet Panel 2 */}
-            <div className="bg-[#1b1b21] rounded-2xl p-4 border border-[#2a2a32] shadow-2xl relative overflow-hidden flex gap-4">
+            <div className="bg-[#1b1b21] rounded-xl lg:rounded-2xl p-3 lg:p-6 border-l-4 border-accent-blue shadow-2xl relative overflow-hidden flex gap-3 lg:gap-6">
                <div className="absolute top-0 left-0 w-1 h-full bg-accent-blue" />
-               <div className="flex flex-col gap-3 w-32 shrink-0">
-                  <div className="flex gap-1">
-                    <button onClick={() => setBetAmount2(b => Math.max(1, b - 1))} className="bg-black/40 text-gray-400 p-1 rounded-md w-full text-[10px] border border-white/5 hover:text-white">-</button>
-                    <button onClick={() => setBetAmount2(b => b + 1)} className="bg-black/40 text-gray-400 p-1 rounded-md w-full text-[10px] border border-white/5 hover:text-white">+</button>
+               <div className="flex flex-col gap-2 lg:gap-4 w-28 lg:w-44 shrink-0">
+                  <div className="flex gap-1 lg:gap-2">
+                    <button onClick={() => setBetAmount2(b => Math.max(1, b - 1))} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
+                    <button onClick={() => setBetAmount2(b => b + 1)} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
                   </div>
-                  <div className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-2 text-center font-bold text-xl text-white">
+                  <div className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-2 lg:p-3 text-center font-bold text-lg lg:text-2xl text-white">
                     {betAmount2.toFixed(2)}
                   </div>
-                  <div className="grid grid-cols-2 gap-1">
+                  <div className="grid grid-cols-2 gap-1 lg:gap-2">
                     {[1, 5, 10, 50].map(v => (
-                      <button key={v} onClick={() => setBetAmount2(v)} className={`bg-white/5 rounded py-1.5 text-[10px] font-bold transition-all ${betAmount2 === v ? 'bg-accent-blue text-white' : 'text-gray-400 hover:bg-white/10'}`}>
+                      <button key={v} onClick={() => setBetAmount2(v)} className={`bg-white/5 rounded py-1 lg:py-2 text-[9px] lg:text-xs font-bold transition-all ${betAmount2 === v ? 'bg-accent-blue text-white shadow-[0_0_10px_rgba(52,152,219,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
                         {v.toFixed(2)}
                       </button>
                     ))}
@@ -590,31 +601,33 @@ export default function App() {
                   <button 
                     disabled={!isInWaiting || balance < betAmount2} 
                     onClick={() => handlePlaceBet(2)} 
-                    className={`flex-1 rounded-xl font-black text-2xl flex flex-col items-center justify-center transition-all active:scale-90 active:bg-[#1e7e34] ${
+                    className={`flex-1 rounded-xl font-black text-xl lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-90 ${
                       isInWaiting && balance >= betAmount2 
-                        ? 'bg-[#28a745] text-white shadow-[0_10px_20px_rgba(40,167,69,0.3)] cursor-pointer' 
-                        : 'bg-white/5 text-gray-600 cursor-not-allowed'
+                        ? 'bg-[#28a745] text-white shadow-[0_10px_20px_rgba(40,167,69,0.3)] cursor-pointer hover:bg-[#2ecc71]' 
+                        : 'bg-white/5 text-gray-600 cursor-not-allowed opacity-50'
                     }`}
                   >
-                    BET
-                    <span className="text-[12px] opacity-60 font-normal uppercase tracking-widest">{formatCurrency(betAmount2)}</span>
+                    <span className="leading-none mb-1">BET</span>
+                    <span className="text-[9px] lg:text-[14px] opacity-60 font-normal uppercase tracking-widest leading-none">
+                      {formatCurrency(betAmount2)}
+                    </span>
                   </button>
                 ) : (
                   <button 
                     disabled={!isFlying} 
                     onClick={() => handleCashOut(2)}
-                    className={`flex-1 rounded-xl font-black text-2xl flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    className={`flex-1 rounded-xl font-black text-xl lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
                       isFlying 
                         ? 'bg-[#f39c12] text-white shadow-[0_10px_20px_rgba(243,156,18,0.3)] cursor-pointer' 
                         : 'bg-white/5 text-gray-600'
                     }`}
                   >
-                    OUT
+                    <span className="leading-none mb-1">OUT</span>
                     {isFlying && (
                       <motion.span 
                         animate={{ scale: [1, 1.1, 1] }} 
                         transition={{ repeat: Infinity, duration: 0.5 }}
-                        className="text-[12px] text-white font-bold mt-1"
+                        className="text-[9px] lg:text-[14px] text-white font-bold"
                       >
                         {formatCurrency(bet2.amount * gameState.currentMultiplier)}
                       </motion.span>
