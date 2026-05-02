@@ -37,13 +37,13 @@ async function startServer() {
 
   function generateCrashPoint() {
     const r = Math.random();
-    // 72% house advantage logic (28% win rate)
-    if (r < 0.20) return 1.00; // 20% instant crash
-    if (r < 0.72) return Math.floor((1.01 + Math.random() * 0.49) * 100) / 100; // 52% crash under 1.50x
+    // 68% house advantage logic (32% win rate)
+    if (r < 0.15) return 1.00; // 15% instant crash
+    if (r < 0.68) return Math.floor((1.01 + Math.random() * 0.79) * 100) / 100; // 53% crash under 1.80x
     
-    // Remaining 28% are mid-to-high rounds
-    if (r < 0.94) return Math.floor((1.51 + Math.pow(Math.random(), 2) * 8) * 100) / 100; 
-    return Math.floor((8.0 + Math.pow(Math.random(), 3) * 92) * 100) / 100;
+    // Remaining 32% are winning rounds for players
+    if (r < 0.92) return Math.floor((1.81 + Math.pow(Math.random(), 2) * 12) * 100) / 100; 
+    return Math.floor((10.0 + Math.pow(Math.random(), 4) * 90) * 100) / 100;
   }
 
   function gameLoop() {

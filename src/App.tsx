@@ -23,15 +23,15 @@ interface GameState {
   timer: number;
 }
 
-// 72% house advantage logic (28% win rate for decent multipliers)
+// 68% house advantage logic (32% win rate for users)
 const generateCrashPoint = () => {
   const r = Math.random();
-  if (r < 0.20) return 1.00; // 20% Instant crash at 1.00x
-  if (r < 0.72) return Math.floor((1.01 + Math.random() * 0.49) * 100) / 100; // 52% Low range (up to 1.50x)
+  if (r < 0.15) return 1.00; // 15% Instant crash (House)
+  if (r < 0.68) return Math.floor((1.01 + Math.random() * 0.79) * 100) / 100; // 53% Low range < 1.80x (House)
   
-  // Remaining 28% are winnable rounds
-  if (r < 0.94) return Math.floor((1.51 + Math.pow(Math.random(), 2) * 8) * 100) / 100; // 22% Mid range
-  return Math.floor((8.0 + Math.pow(Math.random(), 3) * 92) * 100) / 100; // 6% High/Moon rounds
+  // Remaining 32% are User winning rounds
+  if (r < 0.92) return Math.floor((1.81 + Math.pow(Math.random(), 2) * 12) * 100) / 100; // 24% Mid range
+  return Math.floor((10.0 + Math.pow(Math.random(), 4) * 90) * 100) / 100; // 8% Moon rounds
 };
 
 export default function App() {
@@ -381,12 +381,27 @@ export default function App() {
   const isFlying = gameState.status === GameStatus.FLYING;
   const isCrashed = gameState.status === GameStatus.CRASHED;
 
-  // Path Calculation - Keeping plane in view and giving sense of extreme speed
-  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 35)); // Faster visual progress
-  const planeX = Math.min(85, 10 + (progress * 0.8)); // Capped at 85% width
-  const planeY = Math.max(15, 85 - (Math.pow(progress / 10, 1.8) * 15)); // Capped at 15% height
-  // flightRotation: More aggressive tilt
-  const flightRotation = -15 - (progress / 2); 
+  // Path Calculation - Enhanced for Dynamic Rotation and Speed
+  const calcCoords = (mult: number) => {
+    const p = Math.min(100, Math.max(0, (mult - 1) * 32));
+    const x = 10 + (p * 0.82);
+    const y = 88 - (Math.pow(p / 10, 1.85) * 15);
+    return { x, y };
+  };
+
+  const coords = calcCoords(gameState.currentMultiplier);
+  const nextCoords = calcCoords(gameState.currentMultiplier + 0.05);
+  
+  // Dynamic rotation using atan2 for precise "nose-forward" direction
+  const dx = nextCoords.x - coords.x;
+  const dy = nextCoords.y - coords.y;
+  // Adjustment: Lucide Plane icon points ~45 deg by default. 
+  // atan2 returns ~ -30deg for common flight. We adjust so nose follows line.
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  
+  const planeX = Math.min(88, coords.x);
+  const planeY = Math.max(12, coords.y);
+  const flightRotation = isFlying ? (angle + 45) : 0; // +45 to normalize Lucide icon
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
@@ -467,36 +482,59 @@ export default function App() {
           </div>
 
           {/* Game Area */}
-          <div className="relative aspect-[16/10] sm:aspect-video lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_80px_rgba(255,59,59,0.03)] min-h-[220px] lg:min-h-[440px]">
-            {/* Moving Speed Lines/Particles */}
-            {isFlying && (
-              <div className="absolute inset-0 pointer-events-none opacity-40">
-                {[...Array(15)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ x: '120%', y: `${Math.random() * 100}%` }}
-                    animate={{ x: '-20%' }}
-                    transition={{ 
-                      duration: 0.8 / (1 + gameState.currentMultiplier * 0.1), 
-                      repeat: Infinity, 
-                      ease: "linear",
-                      delay: Math.random() * 2
-                    }}
-                    className="absolute h-[1px] bg-white/40"
-                    style={{ width: `${30 + Math.random() * 100}px` }}
-                  />
-                ))}
-              </div>
-            )}
+          <div className="relative aspect-[16/10] sm:aspect-video lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_100px_rgba(255,20,20,0.05)] min-h-[240px] lg:min-h-[460px]">
+            {/* Speed Parallax Background Layers */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+               {/* Distant Stars/Dots */}
+               <motion.div 
+                 className="absolute inset-0 opacity-[0.1]"
+                 animate={isFlying ? { backgroundPosition: ['0px 0px', '-400px 0px'] } : {}}
+                 transition={{ duration: 15 / Math.sqrt(gameState.currentMultiplier), repeat: Infinity, ease: "linear" }}
+                 style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '100px 100px' }}
+               />
+               
+               {/* Moving Speed Lines */}
+               {isFlying && [...Array(12)].map((_, i) => (
+                 <motion.div
+                   key={i}
+                   initial={{ x: '120%', y: `${Math.random() * 100}%` }}
+                   animate={{ x: '-20%' }}
+                   transition={{ 
+                     duration: 1 / (0.5 + gameState.currentMultiplier * 0.4), 
+                     repeat: Infinity, 
+                     ease: "linear",
+                     delay: Math.random() * 1.5
+                   }}
+                   className="absolute h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                   style={{ width: `${80 + Math.random() * 150}px` }}
+                 />
+               ))}
 
-            {/* Grid Background - Now with motion! */}
+               {/* Atmospheric "Clouds" or Glow blobs for speed depth */}
+               {isFlying && [...Array(4)].map((_, i) => (
+                 <motion.div
+                   key={`cloud-${i}`}
+                   initial={{ x: '150%', y: `${10 + Math.random() * 80}%` }}
+                   animate={{ x: '-50%' }}
+                   transition={{ 
+                     duration: 3 / Math.sqrt(gameState.currentMultiplier), 
+                     repeat: Infinity, 
+                     ease: "linear",
+                     delay: i * 0.8
+                   }}
+                   className="absolute w-64 h-32 bg-accent-red/5 blur-[80px] rounded-full"
+                 />
+               ))}
+            </div>
+
+            {/* Grid Background - With perspective-like movement */}
             <motion.div 
-              className="absolute inset-0 opacity-[0.05] pointer-events-none" 
-              animate={isFlying ? { backgroundPosition: ['0px 0px', '-100px 100px'] } : {}}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+              animate={isFlying ? { backgroundPosition: ['0px 0px', '-200px 200px'] } : {}}
+              transition={{ duration: 3 / Math.sqrt(gameState.currentMultiplier), repeat: Infinity, ease: "linear" }}
               style={{ 
-                backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px)`, 
-                backgroundSize: '40px 40px' 
+                backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`, 
+                backgroundSize: '60px 60px' 
               }} 
             />
 
@@ -550,7 +588,7 @@ export default function App() {
                <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                  {isFlying && (
                    <motion.path
-                     d={`M 0 90 Q 20 85 ${planeX} ${planeY}`}
+                     d={`M 10 88 Q ${10 + (planeX - 10) * 0.3} 88 ${planeX} ${planeY}`}
                      fill="none"
                      stroke="url(#pathGradient)"
                      strokeWidth="1.5"
