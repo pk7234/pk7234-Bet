@@ -16,10 +16,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
   const [method, setMethod] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        return setError('Image size should be less than 2MB');
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setScreenshotUrl(base64String);
+        setImagePreview(base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +45,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     
     if (type === 'deposit') {
       if (!transactionId) return setError('Please enter transaction ID');
-      if (!screenshotUrl) return setError('Please provide screenshot Link/Proof');
+      if (!screenshotUrl) return setError('Please upload payment screenshot');
     } else {
       if (!accountNumber) return setError('Please enter account number');
       if (!accountHolder) return setError('Please enter account holder name');
@@ -70,6 +87,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
       setMethod('');
       setTransactionId('');
       setScreenshotUrl('');
+      setImagePreview(null);
       setAccountNumber('');
       setAccountHolder('');
     } catch (err: any) {
@@ -160,17 +178,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Screenshot (Link / Proof URL)</label>
-                    <div className="relative">
-                      <Camera className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                      <input
-                        type="text"
-                        value={screenshotUrl}
-                        onChange={(e) => setScreenshotUrl(e.target.value)}
-                        className="w-full bg-black/40 border border-white/5 rounded-xl pl-12 pr-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-accent-blue transition-colors"
-                        placeholder="Link to your payment screenshot"
-                        required
-                      />
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-1.5 ml-1">Screenshot (Upload Proof)</label>
+                    <div className="relative group">
+                      <div className="w-full bg-black/40 border-2 border-dashed border-white/5 rounded-xl p-4 flex flex-col items-center justify-center hover:border-accent-blue/30 transition-all relative overflow-hidden">
+                        {imagePreview ? (
+                          <div className="relative w-full aspect-video">
+                            <img src={imagePreview} className="w-full h-full object-cover rounded-lg" alt="Preview" />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Camera className="w-6 h-6 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Camera className="w-8 h-8 text-gray-600 mb-2" />
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Browse Gallery / Click Photo</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          required={!screenshotUrl}
+                        />
+                      </div>
                     </div>
                   </div>
                 </>
