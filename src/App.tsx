@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plane, History, Wallet, TrendingUp, Users, Settings, Info, Menu, LogOut, Shield, ArrowUpCircle, ArrowDownCircle, Home, Share2, User as UserIcon, ChevronRight, Copy, Heart } from 'lucide-react';
 import { auth, db } from './lib/firebase';
@@ -23,15 +23,18 @@ interface GameState {
   timer: number;
 }
 
-export default function App() {
-  const generateCrashPoint = () => {
-    const r = Math.random();
-    if (r < 0.08) return 1.0; 
-    if (r < 0.6) return 1.1 + Math.random() * 1.4; 
-    if (r < 0.92) return 2.5 + Math.pow(Math.random(), 2) * 12; 
-    return 15.0 + Math.pow(Math.random(), 3) * 85; 
-  };
+// 72% house advantage logic (28% win rate for decent multipliers)
+const generateCrashPoint = () => {
+  const r = Math.random();
+  if (r < 0.20) return 1.00; // 20% Instant crash at 1.00x
+  if (r < 0.72) return Math.floor((1.01 + Math.random() * 0.49) * 100) / 100; // 52% Low range (up to 1.50x)
+  
+  // Remaining 28% are winnable rounds
+  if (r < 0.94) return Math.floor((1.51 + Math.pow(Math.random(), 2) * 8) * 100) / 100; // 22% Mid range
+  return Math.floor((8.0 + Math.pow(Math.random(), 3) * 92) * 100) / 100; // 6% High/Moon rounds
+};
 
+export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     status: GameStatus.WAITING,
     currentMultiplier: 1.0,
@@ -60,13 +63,17 @@ export default function App() {
 
   // Dynamic Live Bets State
   const [liveBets, setLiveBets] = useState<any[]>([]);
-  const [lastStatus, setLastStatus] = useState<GameStatus | null>(null);
+  const lastStatusRef = useRef<GameStatus | null>(null);
+  const isPollingRef = useRef(false);
 
+  // Consolidate live bets logic into a single effect to prevent ripple updates
   useEffect(() => {
     if (!gameState) return;
-
-    if (gameState.status === GameStatus.WAITING && lastStatus !== GameStatus.WAITING) {
-      // Round initialization
+    const currentStatus = gameState.status;
+    const lastStatus = lastStatusRef.current;
+    
+    // Status Transitions - Only update when status actually changes
+    if (currentStatus === GameStatus.WAITING && lastStatus !== GameStatus.WAITING) {
       const newBets = Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
         user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
         amount: 16 + Math.floor(Math.random() * 500),
@@ -75,21 +82,27 @@ export default function App() {
         win: 0
       }));
       setLiveBets(newBets);
-      setLastStatus(GameStatus.WAITING);
     } 
-    else if (gameState.status === GameStatus.FLYING) {
-      if (lastStatus !== GameStatus.FLYING) {
-        setLastStatus(GameStatus.FLYING);
-      }
 
-      // Handle cashouts and new bets specifically for flying state
+    // Multiplier Updates (only when FLYING)
+    if (currentStatus === GameStatus.FLYING) {
+      const currentMult = gameState.currentMultiplier;
       setLiveBets(prev => {
-        let hasChanges = false;
+        let someReached = false;
+        // Check if any bet reached cashout
+        for (const bet of prev) {
+          if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
+             someReached = true;
+             break;
+          }
+        }
         
-        // 1. Check for cashouts (high frequency but safe with bail-out)
+        const shouldInject = currentMult < 1.3 && Math.random() > 0.998; // Even lower frequency
+
+        if (!someReached && !shouldInject) return prev;
+
         const updatedBets = prev.map(bet => {
-          if (!bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt) {
-            hasChanges = true;
+          if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
             return {
               ...bet,
               cashedOut: true,
@@ -99,36 +112,39 @@ export default function App() {
           return bet;
         });
 
-        // 2. Occasionally add new bets early on (only if something changed or random hit)
-        // Guard random injections to be very infrequent and only at start
-        if (gameState.currentMultiplier < 1.3 && Math.random() > 0.98) {
-          hasChanges = true;
+        if (shouldInject) {
           updatedBets.push({
             user: `${['u', 'r', 'k', 'q'][Math.floor(Math.random() * 4)]}***${100 + Math.floor(Math.random() * 900)}`,
             amount: 16 + Math.floor(Math.random() * 300),
-            cashOutAt: gameState.currentMultiplier + 1 + Math.random() * 3,
+            cashOutAt: currentMult + 1 + Math.random() * 3,
             cashedOut: false,
             win: 0
           });
-          if (updatedBets.length > 40) updatedBets.shift();
+          if (updatedBets.length > 30) updatedBets.shift();
         }
 
-        return hasChanges ? updatedBets : prev;
+        return updatedBets;
       });
-    } 
-    else if (gameState.status === GameStatus.CRASHED && lastStatus !== GameStatus.CRASHED) {
-      setLastStatus(GameStatus.CRASHED);
     }
-  }, [gameState?.status, gameState?.currentMultiplier, lastStatus]);
+
+    lastStatusRef.current = currentStatus;
+  }, [gameState.status, gameState.currentMultiplier]);
 
   // Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+    let unsubBalance: (() => void) | null = null;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      
+      // Cleanup previous balance listener if any
+      if (unsubBalance) {
+        unsubBalance();
+        unsubBalance = null;
+      }
+
       if (u) {
-        // Special Admin Logic
         const IS_SPECIFIC_ADMIN = u.email === 'fast8585100@gmail.com';
-        
         const userRef = doc(db, 'users', u.uid);
         const userSnap = await getDoc(userRef);
         
@@ -145,26 +161,27 @@ export default function App() {
         } else {
           setBalance(userSnap.data().balance);
           setIsAdmin(IS_SPECIFIC_ADMIN || userSnap.data().role === 'admin');
-          
-          // Auto-update role if it's the specific admin email
           if (IS_SPECIFIC_ADMIN && userSnap.data().role !== 'admin') {
             await updateDoc(userRef, { role: 'admin' });
           }
         }
 
-        const unsubBalance = onSnapshot(userRef, (docSnap) => {
+        unsubBalance = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             setBalance(docSnap.data().balance);
             setIsAdmin(docSnap.data().role === 'admin');
           }
         });
-        return () => unsubBalance();
       } else {
         setBalance(1000);
         setIsAdmin(false);
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubBalance) unsubBalance();
+    };
   }, []);
 
   // Currency Detection
@@ -207,6 +224,7 @@ export default function App() {
               crashPoint: generateCrashPoint()
             };
           }
+          if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
 
@@ -222,6 +240,8 @@ export default function App() {
               history: [prev.crashPoint, ...prev.history].slice(0, 50)
             };
           }
+          // Avoid tiny micro-updates that don't visualy matter but trigger effects
+          if (Math.abs(prev.currentMultiplier - actualMult) < 0.001) return prev;
           return { ...prev, currentMultiplier: actualMult };
         }
 
@@ -242,19 +262,19 @@ export default function App() {
       });
     };
 
-    let isPolling = false;
     const poll = async () => {
+      // If we switched to local engine, don't attempt fetch
       if (!apiAvailable) {
         runEngine();
         return;
       }
 
-      if (isPolling) return;
-      isPolling = true;
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 1000); 
         
         const res = await fetch('/api/game-state', { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -262,7 +282,20 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data && data.status) {
-            setGameState(data);
+            setGameState(prev => {
+              const statusChanged = prev.status !== data.status;
+              const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
+              const timerChanged = prev.timer !== data.timer;
+
+              if (!statusChanged && !multChanged && !timerChanged) {
+                return prev;
+              }
+              
+              return {
+                ...data,
+                history: statusChanged && data.status === GameStatus.CRASHED ? data.history : prev.history
+              };
+            });
           }
         } else {
           setApiAvailable(false);
@@ -270,8 +303,7 @@ export default function App() {
       } catch (err) {
         setApiAvailable(false);
       } finally {
-        isPolling = false;
-        if (!apiAvailable) runEngine(); // Catch-up immediately if just turned off
+        isPollingRef.current = false;
       }
     };
 
@@ -281,11 +313,11 @@ export default function App() {
 
   // Reset bets on crash
   useEffect(() => {
-    if (gameState?.status === GameStatus.CRASHED) {
-      setBet1(null);
-      setBet2(null);
+    if (gameState.status === GameStatus.CRASHED) {
+      setBet1(prev => prev ? null : null);
+      setBet2(prev => prev ? null : null);
     }
-  }, [gameState?.status]);
+  }, [gameState.status]);
 
   const handlePlaceBet = async (num: 1 | 2) => {
     if (gameState?.status !== GameStatus.WAITING) return;
@@ -349,12 +381,12 @@ export default function App() {
   const isFlying = gameState.status === GameStatus.FLYING;
   const isCrashed = gameState.status === GameStatus.CRASHED;
 
-  // Path Calculation - Adjusted for high-speed feel and better visible "climb"
-  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 20)); 
-  const planeX = Math.min(96, 5 + (progress * 1.2));
-  const planeY = Math.max(6, 92 - (Math.pow(progress / 5, 2.2) * 12)); 
+  // Path Calculation - Keeping plane in view and giving sense of extreme speed
+  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 35)); // Faster visual progress
+  const planeX = Math.min(85, 10 + (progress * 0.8)); // Capped at 85% width
+  const planeY = Math.max(15, 85 - (Math.pow(progress / 10, 1.8) * 15)); // Capped at 15% height
   // flightRotation: More aggressive tilt
-  const flightRotation = -20 - (progress / 1.5); 
+  const flightRotation = -15 - (progress / 2); 
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
@@ -436,12 +468,36 @@ export default function App() {
 
           {/* Game Area */}
           <div className="relative aspect-[16/10] sm:aspect-video lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_80px_rgba(255,59,59,0.03)] min-h-[220px] lg:min-h-[440px]">
-            {/* Grid Background */}
-            <div className="absolute inset-0 opacity-[0.05] pointer-events-none" 
-                 style={{ 
-                   backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px)`, 
-                   backgroundSize: '40px 40px' 
-                 }} 
+            {/* Moving Speed Lines/Particles */}
+            {isFlying && (
+              <div className="absolute inset-0 pointer-events-none opacity-40">
+                {[...Array(15)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ x: '120%', y: `${Math.random() * 100}%` }}
+                    animate={{ x: '-20%' }}
+                    transition={{ 
+                      duration: 0.8 / (1 + gameState.currentMultiplier * 0.1), 
+                      repeat: Infinity, 
+                      ease: "linear",
+                      delay: Math.random() * 2
+                    }}
+                    className="absolute h-[1px] bg-white/40"
+                    style={{ width: `${30 + Math.random() * 100}px` }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Grid Background - Now with motion! */}
+            <motion.div 
+              className="absolute inset-0 opacity-[0.05] pointer-events-none" 
+              animate={isFlying ? { backgroundPosition: ['0px 0px', '-100px 100px'] } : {}}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              style={{ 
+                backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px)`, 
+                backgroundSize: '40px 40px' 
+              }} 
             />
 
             {/* Flying Multiplier */}
@@ -516,14 +572,14 @@ export default function App() {
                <AnimatePresence>
                  {(isFlying || isCrashed) && (
                    <motion.div
-                     initial={{ x: "0%", y: "90%", rotate: -25 }}
+                     initial={{ left: "10%", top: "85%", rotate: -25 }}
                      animate={isFlying ? { 
                        left: `${planeX}%`, 
                        top: `${planeY}%`,
                        rotate: flightRotation
                      } : {
-                        left: ["80%", "150%"],
-                        top: ["10%", "-50%"],
+                        left: `${planeX + 50}%`,
+                        top: `${planeY - 50}%`,
                         opacity: [1, 0]
                      }}
                      transition={isFlying ? { duration: 0.1, ease: "linear" } : { duration: 1, ease: "easeIn" }}
