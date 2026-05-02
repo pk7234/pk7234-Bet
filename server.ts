@@ -112,7 +112,10 @@ async function startServer() {
   setInterval(gameLoop, 33);
 
   app.get('/api/game-state', (req, res) => {
-    res.json(state);
+    res.json({
+      ...state,
+      serverTime: Date.now()
+    });
   });
 
   // Vite middleware for development

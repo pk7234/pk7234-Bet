@@ -33,6 +33,18 @@
         "processedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "type", "amount", "status", "createdAt"]
+    },
+    "GameHistory": {
+      "title": "Game History",
+      "description": "List of recent crash points",
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      },
+      "required": ["values"]
     }
   },
   "firestore": {
@@ -43,6 +55,10 @@
     "/transactions/{transId}": {
       "schema": "Transaction",
       "description": "Financial transaction requests"
+    },
+    "/game/history": {
+      "schema": "GameHistory",
+      "description": "Global game history results"
     }
   }
 }

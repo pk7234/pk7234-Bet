@@ -57,6 +57,7 @@ export default function App() {
     };
   });
   const [isSynced, setIsSynced] = useState(false);
+  const [timeOffset, setTimeOffset] = useState(0);
   const [balance, setBalance] = useState(1000);
   
   // Bet 1 States
@@ -87,10 +88,11 @@ export default function App() {
     const currentStatus = gameState.status;
     const lastStatus = lastStatusRef.current;
     
-    // Status Transitions - Only update when status actually changes
+    // Reset/Initialize bets only on status change
     if (currentStatus === GameStatus.WAITING && lastStatus !== GameStatus.WAITING) {
       const newBets = Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
         user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
+        user_id: `bot_${i}_${Date.now()}`,
         amount: 16 + Math.floor(Math.random() * 500),
         cashOutAt: 1.1 + Math.pow(Math.random(), 2) * 5,
         cashedOut: false,
@@ -99,51 +101,46 @@ export default function App() {
       setLiveBets(newBets);
     } 
 
-    // Multiplier Updates (only when FLYING)
-    if (currentStatus === GameStatus.FLYING) {
-      const currentMult = gameState.currentMultiplier;
-      setLiveBets(prev => {
-        let someReached = false;
-        // Check if any bet reached cashout
-        for (const bet of prev) {
-          if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
-             someReached = true;
-             break;
-          }
-        }
-        
-        const shouldInject = currentMult < 1.3 && Math.random() > 0.998; // Even lower frequency
-
-        if (!someReached && !shouldInject) return prev;
-
-        const updatedBets = prev.map(bet => {
-          if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
-            return {
-              ...bet,
-              cashedOut: true,
-              win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100
-            };
-          }
-          return bet;
-        });
-
-        if (shouldInject) {
-          updatedBets.push({
-            user: `${['u', 'r', 'k', 'q'][Math.floor(Math.random() * 4)]}***${100 + Math.floor(Math.random() * 900)}`,
-            amount: 16 + Math.floor(Math.random() * 300),
-            cashOutAt: currentMult + 1 + Math.random() * 3,
-            cashedOut: false,
-            win: 0
-          });
-          if (updatedBets.length > 30) updatedBets.shift();
-        }
-
-        return updatedBets;
-      });
-    }
-
     lastStatusRef.current = currentStatus;
-  }, [gameState.status, gameState.currentMultiplier]);
+  }, [gameState.status]);
+
+  // Handle bot cashouts and new bet injections in a separate effect
+  useEffect(() => {
+    if (gameState.status !== GameStatus.FLYING) return;
+    
+    const currentMult = gameState.currentMultiplier;
+    
+    setLiveBets(prev => {
+      let changed = false;
+      const updatedBets = prev.map(bet => {
+        if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
+          changed = true;
+          return {
+            ...bet,
+            cashedOut: true,
+            win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100
+          };
+        }
+        return bet;
+      });
+
+      // Randomized injection
+      if (currentMult < 1.3 && Math.random() > 0.99) {
+        changed = true;
+        updatedBets.push({
+          user: `${['u', 'r', 'k', 'q'][Math.floor(Math.random() * 4)]}***${100 + Math.floor(Math.random() * 900)}`,
+          user_id: `bot_extra_${Date.now()}`,
+          amount: 16 + Math.floor(Math.random() * 300),
+          cashOutAt: currentMult + 1 + Math.random() * 3,
+          cashedOut: false,
+          win: 0
+        });
+        if (updatedBets.length > 30) updatedBets.shift();
+      }
+
+      return changed ? updatedBets : prev;
+    });
+  }, [gameState.currentMultiplier, gameState.status]);
 
   // Auth Listener
   useEffect(() => {
@@ -224,7 +221,7 @@ export default function App() {
     
     const runEngine = () => {
       setGameState(prev => {
-        const now = Date.now();
+        const now = Date.now() + timeOffset;
         const elapsed = (now - prev.startTime) / 1000;
 
         if (prev.status === GameStatus.WAITING) {
@@ -265,7 +262,8 @@ export default function App() {
         }
 
         if (prev.status === GameStatus.CRASHED) {
-          if (elapsed >= 3) {
+          const remaining = Math.max(0, 3 - Math.floor(elapsed));
+          if (remaining === 0) {
             return {
               ...prev,
               status: GameStatus.WAITING,
@@ -275,6 +273,8 @@ export default function App() {
               timer: 5
             };
           }
+          if (prev.timer === remaining) return prev;
+          return { ...prev, timer: remaining };
         }
 
         return prev;
@@ -307,6 +307,9 @@ export default function App() {
           if (contentType && contentType.indexOf("application/json") !== -1) {
             const data = await res.json();
             if (data && data.status) {
+              if (data.serverTime) {
+                setTimeOffset(data.serverTime - Date.now());
+              }
               setGameState(prev => {
                 const statusChanged = prev.status !== data.status;
                 const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
@@ -364,7 +367,7 @@ export default function App() {
       }
     };
 
-    interval = setInterval(poll, 33); // Match server frequency
+    interval = setInterval(poll, 1000); // Poll once per second for server state correction
     return () => clearInterval(interval);
   }, [apiAvailable]);
 
