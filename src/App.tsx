@@ -45,10 +45,13 @@ export default function App() {
 
   // Dynamic Live Bets State
   const [liveBets, setLiveBets] = useState<any[]>([]);
+  const [lastStatus, setLastStatus] = useState<GameStatus | null>(null);
 
   useEffect(() => {
-    if (gameState?.status === GameStatus.WAITING) {
-      // Generate new fake live bets for the round
+    if (!gameState) return;
+
+    if (gameState.status === GameStatus.WAITING && lastStatus !== GameStatus.WAITING) {
+      // Generate new fake live bets ONCE per round
       const newBets = Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
         user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
         amount: 16 + Math.floor(Math.random() * 500),
@@ -57,18 +60,27 @@ export default function App() {
         win: 0
       }));
       setLiveBets(newBets);
-    } else if (gameState?.status === GameStatus.FLYING) {
+      setLastStatus(GameStatus.WAITING);
+    } else if (gameState.status === GameStatus.FLYING) {
+      setLastStatus(GameStatus.FLYING);
       // Update bets that cash out at current multiplier
-      setLiveBets(prev => prev.map(bet => {
-        if (!bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt) {
-          return {
-            ...bet,
-            cashedOut: true,
-            win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100
-          };
-        }
-        return bet;
-      }));
+      setLiveBets(prev => {
+        const hasChanges = prev.some(bet => !bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt);
+        if (!hasChanges) return prev;
+        
+        return prev.map(bet => {
+          if (!bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt) {
+            return {
+              ...bet,
+              cashedOut: true,
+              win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100
+            };
+          }
+          return bet;
+        });
+      });
+    } else if (gameState.status === GameStatus.CRASHED && lastStatus !== GameStatus.CRASHED) {
+      setLastStatus(GameStatus.CRASHED);
     }
   }, [gameState?.status, gameState?.currentMultiplier]);
 
@@ -268,6 +280,7 @@ export default function App() {
     if (gameState?.status !== GameStatus.FLYING) return;
 
     setTimeout(async () => {
+      // Re-verify flying status after short delay to prevent race conditions
       if (gameState?.status !== GameStatus.FLYING) return;
 
       const bet = num === 1 ? bet1 : bet2;
@@ -291,14 +304,6 @@ export default function App() {
       setTimeout(() => setLastWin(null), 3000);
     }, 150);
   };
-
-  // Reset bets on crash
-  useEffect(() => {
-    if (gameState?.status === GameStatus.CRASHED) {
-      setBet1(null);
-      setBet2(null);
-    }
-  }, [gameState?.status]);
 
   if (!gameState) return <div className="min-h-screen bg-[#0b0c0f] flex items-center justify-center text-white font-mono tracking-tighter uppercase">Initializing Engine...</div>;
 
