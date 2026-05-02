@@ -66,10 +66,7 @@ async function startServer() {
         state.currentMultiplier = state.crashPoint;
         state.status = GameStatus.CRASHED;
         state.startTime = now;
-        state.history = [state.crashPoint, ...state.history];
-        if (state.history.length >= 50) {
-          state.history = [];
-        }
+        state.history = [state.crashPoint, ...state.history].slice(0, 50);
       }
     } else if (state.status === GameStatus.CRASHED) {
       state.timer = Math.max(0, 3 - Math.floor((now - state.startTime) / 1000));

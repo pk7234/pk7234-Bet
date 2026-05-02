@@ -60,6 +60,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'history' | 'wallet' | 'invite' | 'profile'>('home');
+  const [showFullHistory, setShowFullHistory] = useState(false);
 
   // Dynamic Live Bets State
   const [liveBets, setLiveBets] = useState<any[]>([]);
@@ -293,7 +294,7 @@ export default function App() {
               
               return {
                 ...data,
-                history: statusChanged && data.status === GameStatus.CRASHED ? data.history : prev.history
+                history: (prev.history.length === 0 || statusChanged) ? data.history : prev.history
               };
             });
           }
@@ -458,28 +459,80 @@ export default function App() {
             <div className="lg:col-span-3 order-1 lg:order-2 flex flex-col gap-2">
               
               {/* History Bar */}
-          <div className="glass rounded-xl p-2 flex items-center gap-3 overflow-hidden">
-            <div className="flex items-center gap-1.5 text-gray-500 border-r border-white/5 pr-3 shrink-0">
-               <History className="w-4 h-4" />
-               <span className="text-[10px] font-black uppercase tracking-tighter">History</span>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-              {gameState.history.map((h, i) => (
-                <motion.div 
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  key={i} 
-                  className={`history-pill px-3 py-1 rounded-full text-[11px] font-bold shrink-0 shadow-sm border ${
-                    h >= 10.0 ? 'text-pink-400 border-pink-400/30' :
-                    h >= 2.0 ? 'text-accent-blue border-accent-blue/30' : 
-                    'text-gray-400 border-white/10'
-                  }`}
+              <div className="glass rounded-xl p-1.5 flex items-center gap-2 overflow-hidden relative">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1">
+                  {gameState.history.map((h, i) => (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      key={i} 
+                      className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold shrink-0 shadow-sm border ${
+                        h >= 10.0 ? 'text-pink-400 border-pink-400/30' :
+                        h >= 2.0 ? 'text-accent-blue border-accent-blue/30' : 
+                        'text-gray-400 border-white/10'
+                      }`}
+                    >
+                      {h.toFixed(2)}x
+                    </motion.div>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => setShowFullHistory(true)}
+                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 transition-colors shrink-0 flex items-center gap-1"
                 >
-                  {h.toFixed(2)}x
-                </motion.div>
-              ))}
-            </div>
-          </div>
+                  <History className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-bold hidden sm:inline">MORE</span>
+                </button>
+              </div>
+
+              {/* Full History Modal */}
+              <AnimatePresence>
+                {showFullHistory && (
+                  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setShowFullHistory(false)}
+                      className="absolute inset-0 bg-black/80 backdrop-blur-md" 
+                    />
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                      className="relative w-full max-w-md bg-[#16171d] rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[75vh]"
+                    >
+                      <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/20">
+                        <div className="flex items-center gap-2">
+                           <History className="w-4 h-4 text-gray-400" />
+                           <span className="font-black text-xs uppercase tracking-widest text-white">Full Crash History</span>
+                        </div>
+                        <button onClick={() => setShowFullHistory(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-gray-400 hover:text-white transition-colors">&times;</button>
+                      </div>
+                      <div className="p-4 overflow-y-auto grid grid-cols-4 sm:grid-cols-5 gap-2 custom-scrollbar">
+                        {gameState.history.map((h, i) => (
+                          <div 
+                            key={i} 
+                            className={`px-2 py-2.5 rounded-xl text-[10px] font-black text-center border shadow-sm ${
+                              h >= 10.0 ? 'bg-pink-400/10 text-pink-400 border-pink-400/20' :
+                              h >= 2.0 ? 'bg-accent-blue/10 text-accent-blue border-accent-blue/20' : 
+                              'bg-white/5 text-gray-400 border-white/5'
+                            }`}
+                          >
+                            {h.toFixed(2)}x
+                          </div>
+                        ))}
+                        {gameState.history.length === 0 && (
+                          <div className="col-span-full py-20 text-center text-gray-500 font-bold uppercase tracking-widest text-[10px]">No history yet</div>
+                        )}
+                      </div>
+                      <div className="p-4 bg-black/20 border-t border-white/5 text-center">
+                         <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Last 50 Rounds</span>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
 
           {/* Game Area */}
           <div className="relative aspect-[16/10] sm:aspect-video lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_100px_rgba(255,20,20,0.05)] min-h-[240px] lg:min-h-[460px]">
@@ -985,12 +1038,12 @@ export default function App() {
                    <div className="flex-1 text-left min-w-0">
                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1 px-1">Your Referral Link</span>
                       <div className="text-[10px] sm:text-xs font-mono text-[#2ecc71] truncate bg-black/60 px-3 py-2.5 rounded-lg border border-white/5 select-all overflow-hidden whitespace-nowrap">
-                        https://aviator.pro/ref/{user?.uid?.slice(0, 8) || 'signup'}
+                        https://pk7234-bet.pages.dev/r/{user?.uid?.slice(0, 8) || 'signup'}
                       </div>
                    </div>
                    <button 
                      onClick={() => {
-                        navigator.clipboard.writeText(`https://aviator.pro/ref/${user?.uid?.slice(0, 8) || 'signup'}`);
+                        navigator.clipboard.writeText(`https://pk7234-bet.pages.dev/r/${user?.uid?.slice(0, 8) || 'signup'}`);
                         alert('Link copied to clipboard!');
                      }}
                      className="bg-accent-blue p-2.5 sm:p-3 rounded-xl text-white shadow-lg hover:bg-accent-blue/80 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0"
