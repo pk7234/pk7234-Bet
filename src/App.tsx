@@ -55,7 +55,7 @@ export default function App() {
       const newBets = Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
         user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
         amount: 16 + Math.floor(Math.random() * 500),
-        cashOutAt: 1.1 + Math.random() * 10,
+        cashOutAt: 1.1 + Math.pow(Math.random(), 2) * 5, // More realistic cashouts
         cashedOut: false,
         win: 0
       }));
@@ -63,6 +63,21 @@ export default function App() {
       setLastStatus(GameStatus.WAITING);
     } else if (gameState.status === GameStatus.FLYING) {
       setLastStatus(GameStatus.FLYING);
+
+      // Periodically add new bets during flight if it's early
+      if (gameState.currentMultiplier < 1.5 && Math.random() > 0.8) {
+        setLiveBets(prev => [
+           ...prev,
+           {
+            user: `${['u', 'r', 'k', 'q'][Math.floor(Math.random() * 4)]}***${100 + Math.floor(Math.random() * 900)}`,
+            amount: 16 + Math.floor(Math.random() * 300),
+            cashOutAt: gameState.currentMultiplier + 1 + Math.random() * 3,
+            cashedOut: false,
+            win: 0
+           }
+        ].slice(-40));
+      }
+
       // Update bets that cash out at current multiplier
       setLiveBets(prev => {
         const hasChanges = prev.some(bet => !bet.cashedOut && gameState.currentMultiplier >= bet.cashOutAt);
@@ -163,7 +178,7 @@ export default function App() {
             status: GameStatus.WAITING,
             currentMultiplier: 1.0,
             startTime: now,
-            crashPoint: 1.0 + Math.pow(Math.random(), 2) * 50,
+            crashPoint: generateCrashPoint(),
             history: [],
             timer: 5
           };
@@ -186,9 +201,13 @@ export default function App() {
         }
 
         if (prev.status === GameStatus.FLYING) {
-          const newMultiplier = Math.pow(1.06, elapsed); 
+          // Faster curve
+          const newMultiplier = 1.0 + Math.pow(elapsed / 10, 1.25) * 10; 
+          const actualMult = Math.max(1.0, Math.pow(1.06, elapsed)); // Keep it smooth but display consistent with curve
           
-          if (newMultiplier >= prev.crashPoint) {
+          const displayedMultiplier = actualMult;
+
+          if (displayedMultiplier >= prev.crashPoint) {
             const newHistory = [prev.crashPoint, ...prev.history].slice(0, 50);
             return {
               ...prev,
@@ -198,7 +217,7 @@ export default function App() {
               history: newHistory
             };
           }
-          return { ...prev, currentMultiplier: newMultiplier };
+          return { ...prev, currentMultiplier: displayedMultiplier };
         }
 
         if (prev.status === GameStatus.CRASHED) {
@@ -208,7 +227,7 @@ export default function App() {
               status: GameStatus.WAITING,
               currentMultiplier: 1.0,
               startTime: now,
-              crashPoint: 1.0 + Math.pow(Math.random(), 3) * 100,
+              crashPoint: generateCrashPoint(),
               timer: 5
             };
           }
@@ -311,12 +330,21 @@ export default function App() {
   const isFlying = gameState.status === GameStatus.FLYING;
   const isCrashed = gameState.status === GameStatus.CRASHED;
 
+  // Better Randomness for Crash Points (with house edge)
+  const generateCrashPoint = () => {
+    const r = Math.random();
+    if (r < 0.05) return 1.0; // 5% chance of instant crash
+    if (r < 0.5) return 1.0 + Math.random() * 1.5; // High frequency low crash
+    if (r < 0.9) return 2.0 + Math.pow(Math.random(), 2) * 8; // Mid crash
+    return 10.0 + Math.pow(Math.random(), 3) * 90; // Rare high fly
+  };
+
   // Path Calculation
-  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 12)); 
-  const planeX = Math.min(92, 5 + (progress * 0.85));
-  const planeY = Math.max(12, 85 - (Math.pow(progress / 10, 1.7) * 4.2)); 
+  const progress = Math.min(100, Math.max(0, (gameState.currentMultiplier - 1) * 8)); 
+  const planeX = Math.min(94, 5 + (progress * 0.9));
+  const planeY = Math.max(10, 85 - (Math.pow(progress / 8, 1.8) * 6)); 
   // flightRotation: Points more horizontally towards the right corner
-  const flightRotation = -5 - (progress / 12); 
+  const flightRotation = -10 - (progress / 10); 
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
@@ -536,43 +564,43 @@ export default function App() {
           </div>
 
           {/* Dual Controls Panel */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 lg:gap-4 px-1 lg:px-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-4">
             {/* Bet Panel 1 */}
-            <div className="bg-[#1b1b21] rounded-lg lg:rounded-2xl p-1.5 lg:p-6 border-l-4 border-accent-red shadow-2xl relative overflow-hidden flex flex-row gap-1.5 lg:gap-6 items-center min-h-[100px] lg:min-h-0">
+            <div className="bg-[#1b1b21] rounded-xl lg:rounded-2xl p-2 lg:p-6 border-l-4 border-accent-red shadow-2xl relative overflow-hidden flex flex-row gap-2 lg:gap-6 items-center">
                <div className="absolute top-0 left-0 w-1 h-full bg-accent-red" />
-               <div className="flex flex-col gap-1 lg:gap-4 w-20 lg:w-44 shrink-0">
+               <div className="flex flex-col gap-2 lg:gap-4 w-24 lg:w-44 shrink-0">
                   <div className="flex gap-1 lg:gap-2">
-                    <button onClick={() => setBetAmount1(b => Math.max(16, b - 1))} className="bg-black/40 text-gray-400 p-0.5 lg:p-2 rounded-md w-full text-[8px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
-                    <button onClick={() => setBetAmount1(b => b + 1)} className="bg-black/40 text-gray-400 p-0.5 lg:p-2 rounded-md w-full text-[8px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
+                    <button onClick={() => setBetAmount1(b => Math.max(16, b - 1))} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
+                    <button onClick={() => setBetAmount1(b => b + 1)} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
                   </div>
                   <input 
                     type="number"
                     value={betAmount1}
                     onChange={(e) => setBetAmount1(Math.max(0, Number(e.target.value)))}
-                    className="bg-[#0d0d10] border border-[#32323d] rounded-md p-1 lg:p-3 text-center font-bold text-xs lg:text-2xl text-white w-full outline-none focus:border-accent-red/50"
+                    className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-1.5 lg:p-3 text-center font-bold text-base lg:text-2xl text-white w-full outline-none focus:border-accent-red/50"
                   />
                   <div className="grid grid-cols-2 gap-1 lg:gap-2">
                     {[16, 32, 64, 100].map(v => (
-                      <button key={v} onClick={() => setBetAmount1(v)} className={`bg-white/5 rounded py-0.5 lg:py-2 text-[7px] lg:text-xs font-bold transition-all ${betAmount1 === v ? 'bg-accent-red text-white shadow-[0_0_10px_rgba(255,59,59,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
+                      <button key={v} onClick={() => setBetAmount1(v)} className={`bg-white/5 rounded py-1 lg:py-2 text-[8px] lg:text-xs font-bold transition-all ${betAmount1 === v ? 'bg-accent-red text-white shadow-[0_0_10px_rgba(255,59,59,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
                         {v}
                       </button>
                     ))}
                   </div>
                </div>
                
-               <div className="flex-1 self-stretch flex flex-col h-full">
+               <div className="flex-1 self-stretch flex flex-col">
                 {!bet1?.active ? (
                   <button 
                     disabled={!isInWaiting || balance < betAmount1} 
                     onClick={() => handlePlaceBet(1)} 
-                    className={`flex-1 rounded-lg lg:rounded-xl font-black text-sm lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    className={`flex-1 rounded-xl font-black text-lg lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-90 ${
                       isInWaiting && balance >= betAmount1 
                         ? 'bg-[#28a745] text-white shadow-[0_10px_20px_rgba(40,167,69,0.3)] cursor-pointer hover:bg-[#2ecc71]' 
                         : 'bg-white/5 text-gray-600 cursor-not-allowed opacity-50'
                     }`}
                   >
                     <span className="leading-none mb-0.5 lg:mb-1">BET</span>
-                    <span className="text-[7px] lg:text-[14px] opacity-60 font-normal uppercase tracking-widest leading-none">
+                    <span className="text-[8px] lg:text-[14px] opacity-60 font-normal uppercase tracking-widest leading-none">
                       {formatCurrency(betAmount1)}
                     </span>
                   </button>
@@ -580,7 +608,7 @@ export default function App() {
                   <button 
                     disabled={!isFlying} 
                     onClick={() => handleCashOut(1)}
-                    className={`flex-1 rounded-lg lg:rounded-xl font-black text-sm lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    className={`flex-1 rounded-xl font-black text-lg lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
                       isFlying 
                         ? 'bg-[#f39c12] text-white shadow-[0_10px_20px_rgba(243,156,18,0.3)] cursor-pointer' 
                         : 'bg-white/5 text-gray-600'
@@ -591,7 +619,7 @@ export default function App() {
                       <motion.span 
                         animate={{ scale: [1, 1.1, 1] }} 
                         transition={{ repeat: Infinity, duration: 0.5 }}
-                        className="text-[7px] lg:text-[14px] text-white font-bold"
+                        className="text-[8px] lg:text-[14px] text-white font-bold"
                       >
                         {formatCurrency(bet1.amount * gameState.currentMultiplier)}
                       </motion.span>
@@ -602,41 +630,41 @@ export default function App() {
             </div>
 
             {/* Bet Panel 2 */}
-            <div className="bg-[#1b1b21] rounded-lg lg:rounded-2xl p-1.5 lg:p-6 border-l-4 border-accent-blue shadow-2xl relative overflow-hidden flex flex-row gap-1.5 lg:gap-6 items-center min-h-[100px] lg:min-h-0">
+            <div className="bg-[#1b1b21] rounded-xl lg:rounded-2xl p-2 lg:p-6 border-l-4 border-accent-blue shadow-2xl relative overflow-hidden flex flex-row gap-2 lg:gap-6 items-center">
                <div className="absolute top-0 left-0 w-1 h-full bg-accent-blue" />
-               <div className="flex flex-col gap-1 lg:gap-4 w-20 lg:w-44 shrink-0">
+               <div className="flex flex-col gap-2 lg:gap-4 w-24 lg:w-44 shrink-0">
                   <div className="flex gap-1 lg:gap-2">
-                    <button onClick={() => setBetAmount2(b => Math.max(16, b - 1))} className="bg-black/40 text-gray-400 p-0.5 lg:p-2 rounded-md w-full text-[8px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
-                    <button onClick={() => setBetAmount2(b => b + 1)} className="bg-black/40 text-gray-400 p-0.5 lg:p-2 rounded-md w-full text-[8px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
+                    <button onClick={() => setBetAmount2(b => Math.max(16, b - 1))} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
+                    <button onClick={() => setBetAmount2(b => b + 1)} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
                   </div>
                   <input 
                     type="number"
                     value={betAmount2}
                     onChange={(e) => setBetAmount2(Math.max(0, Number(e.target.value)))}
-                    className="bg-[#0d0d10] border border-[#32323d] rounded-md p-1 lg:p-3 text-center font-bold text-xs lg:text-2xl text-white w-full outline-none focus:border-accent-blue/50"
+                    className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-1.5 lg:p-3 text-center font-bold text-base lg:text-2xl text-white w-full outline-none focus:border-accent-blue/50"
                   />
                   <div className="grid grid-cols-2 gap-1 lg:gap-2">
                     {[16, 32, 64, 100].map(v => (
-                      <button key={v} onClick={() => setBetAmount2(v)} className={`bg-white/5 rounded py-0.5 lg:py-2 text-[7px] lg:text-xs font-bold transition-all ${betAmount2 === v ? 'bg-accent-blue text-white shadow-[0_0_10px_rgba(52,152,219,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
+                      <button key={v} onClick={() => setBetAmount2(v)} className={`bg-white/5 rounded py-1 lg:py-2 text-[8px] lg:text-xs font-bold transition-all ${betAmount2 === v ? 'bg-accent-blue text-white shadow-[0_0_10px_rgba(52,152,219,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
                         {v}
                       </button>
                     ))}
                   </div>
                </div>
                
-               <div className="flex-1 self-stretch flex flex-col h-full">
+               <div className="flex-1 self-stretch flex flex-col">
                 {!bet2?.active ? (
                   <button 
                     disabled={!isInWaiting || balance < betAmount2} 
                     onClick={() => handlePlaceBet(2)} 
-                    className={`flex-1 self-stretch rounded-lg lg:rounded-xl font-black text-sm lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    className={`flex-1 self-stretch rounded-xl font-black text-lg lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-90 ${
                       isInWaiting && balance >= betAmount2 
                         ? 'bg-[#28a745] text-white shadow-[0_10px_20px_rgba(40,167,69,0.3)] cursor-pointer hover:bg-[#2ecc71]' 
                         : 'bg-white/5 text-gray-600 cursor-not-allowed opacity-50'
                     }`}
                   >
                     <span className="leading-none mb-0.5 lg:mb-1">BET</span>
-                    <span className="text-[7px] lg:text-[14px] opacity-60 font-normal uppercase tracking-widest leading-none">
+                    <span className="text-[8px] lg:text-[14px] opacity-60 font-normal uppercase tracking-widest leading-none">
                       {formatCurrency(betAmount2)}
                     </span>
                   </button>
@@ -644,7 +672,7 @@ export default function App() {
                   <button 
                     disabled={!isFlying} 
                     onClick={() => handleCashOut(2)}
-                    className={`flex-1 self-stretch rounded-lg lg:rounded-xl font-black text-sm lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
+                    className={`flex-1 self-stretch rounded-xl font-black text-lg lg:text-3xl flex flex-col items-center justify-center transition-all active:scale-95 ${
                       isFlying 
                         ? 'bg-[#f39c12] text-white shadow-[0_10px_20px_rgba(243,156,18,0.3)] cursor-pointer' 
                         : 'bg-white/5 text-gray-600'
@@ -655,7 +683,7 @@ export default function App() {
                       <motion.span 
                         animate={{ scale: [1, 1.1, 1] }} 
                         transition={{ repeat: Infinity, duration: 0.5 }}
-                        className="text-[7px] lg:text-[14px] text-white font-bold"
+                        className="text-[8px] lg:text-[14px] text-white font-bold"
                       >
                         {formatCurrency(bet2.amount * gameState.currentMultiplier)}
                       </motion.span>
@@ -849,7 +877,7 @@ export default function App() {
                 <h2 className="text-3xl font-black italic tracking-tighter uppercase mb-2">Refer & Earn</h2>
                 <p className="text-gray-400 text-sm mb-8 px-8">Invite your friends to Aviator Pro and earn up to 5% of their total bets for life!</p>
                 
-                <div className="bg-black/40 rounded-xl p-3 lg:p-4 border border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 group">
+                <div className="bg-black/40 rounded-xl p-3 lg:p-4 border border-white/5 flex flex-col sm:sm:row items-stretch sm:items-center gap-3 group">
                    <div className="flex-1 text-left min-w-0">
                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1 px-1">Your Referral Link</span>
                       <div className="text-[10px] sm:text-xs font-mono text-[#2ecc71] truncate bg-black/60 px-3 py-2.5 rounded-lg border border-white/5 select-all overflow-hidden whitespace-nowrap">

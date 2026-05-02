@@ -32,23 +32,23 @@ async function startServer() {
     startTime: Date.now(),
     crashPoint: 0,
     history: [],
-    timer: 10, // 10 seconds betting time
+    timer: 5, // 5 seconds betting time (sync with client)
   };
 
   function generateCrashPoint() {
-    // Standard Aviator/Crash Algorithm
-    // Lower chance for high multipliers, 3% house edge
     const r = Math.random();
-    if (r < 0.03) return 1.0; // 3% chance of instant crash at 1.00
-    const crash = 0.99 / (1 - Math.random());
-    return Math.max(1, Math.floor(crash * 100) / 100);
+    // Improved logic for house edge and excitement balance
+    if (r < 0.08) return 1.0; // 8% instant crash
+    if (r < 0.6) return 1.0 + Math.random() * 1.6; // High frequency low crash (1x - 2.6x)
+    if (r < 0.95) return 2.0 + Math.pow(Math.random(), 1.5) * 15; // Mid crash (2x - 17x)
+    return 15.0 + Math.pow(Math.random(), 2.5) * 85; // Rare high fly (15x - 100x)
   }
 
   function gameLoop() {
     const now = Date.now();
 
     if (state.status === GameStatus.WAITING) {
-      state.timer = Math.max(0, 10 - Math.floor((now - state.startTime) / 1000));
+      state.timer = Math.max(0, 5 - Math.floor((now - state.startTime) / 1000));
       if (state.timer === 0) {
         state.status = GameStatus.FLYING;
         state.startTime = now;
@@ -57,9 +57,9 @@ async function startServer() {
       }
     } else if (state.status === GameStatus.FLYING) {
       const elapsedSeconds = (now - state.startTime) / 1000;
-      // Real Aviator growth: starts slow, accelerates slightly
-      // Standard formula: multiplier = 1.00 * e^(0.1 * t)
-      state.currentMultiplier = Math.floor(Math.pow(Math.E, 0.12 * elapsedSeconds) * 100) / 100;
+      // Real Aviator growth: starts slow, accelerates
+      // Standard formula adjustment
+      state.currentMultiplier = Math.floor(Math.pow(1.06, elapsedSeconds) * 100) / 100;
       
       if (state.currentMultiplier >= state.crashPoint) {
         state.currentMultiplier = state.crashPoint;

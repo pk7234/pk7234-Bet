@@ -129,6 +129,26 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {type === 'deposit' && (
+                <div className="bg-accent-blue/10 border border-accent-blue/20 rounded-xl p-4 mb-4">
+                  <div className="text-[10px] font-black text-accent-blue uppercase tracking-widest mb-2">Send Money To:</div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400">EasyPaisa:</span>
+                      <span className="text-white font-bold font-mono">03001234567</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400">JazzCash:</span>
+                      <span className="text-white font-bold font-mono">03001234567</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400">Holder:</span>
+                      <span className="text-white font-bold uppercase">AHMAD REZA</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Payment Method</label>
                 <select
