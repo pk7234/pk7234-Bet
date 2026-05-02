@@ -35,28 +35,16 @@ const generateCrashPoint = () => {
 };
 
 export default function App() {
-  const [gameState, setGameState] = useState<GameState>(() => {
-    // Try to load history from local storage as a fallback for screen refreshes
-    let savedHistory: number[] = [];
-    try {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem('aviator_history') : null;
-      if (stored) savedHistory = JSON.parse(stored);
-      if (!Array.isArray(savedHistory)) savedHistory = [];
-    } catch (e) {
-      console.error("Failed to parse history", e);
-      savedHistory = [];
-    }
-
-    return {
-      status: GameStatus.WAITING,
-      currentMultiplier: 1.0,
-      startTime: Date.now(),
-      crashPoint: generateCrashPoint(),
-      history: savedHistory,
-      timer: 5
-    };
+  const [gameState, setGameState] = useState<GameState>({
+    status: GameStatus.WAITING,
+    currentMultiplier: 1.0,
+    startTime: 0, // 0 indicates we haven't synced with server yet
+    crashPoint: 1.0,
+    history: [],
+    timer: 5
   });
   const [isSynced, setIsSynced] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [timeOffset, setTimeOffset] = useState(0);
   const [balance, setBalance] = useState(1000);
   
@@ -221,21 +209,13 @@ export default function App() {
     
     const runEngine = () => {
       setGameState(prev => {
+        if (prev.startTime === 0) return prev;
+
         const now = Date.now() + timeOffset;
         const elapsed = (now - prev.startTime) / 1000;
 
         if (prev.status === GameStatus.WAITING) {
           const remaining = Math.max(0, 5 - Math.floor(elapsed));
-          if (remaining === 0) {
-            return {
-              ...prev,
-              status: GameStatus.FLYING,
-              startTime: now,
-              timer: 0,
-              currentMultiplier: 1.0,
-              crashPoint: generateCrashPoint()
-            };
-          }
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
@@ -244,35 +224,20 @@ export default function App() {
           const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
           
           if (actualMult >= prev.crashPoint) {
-            const newHistory = [prev.crashPoint, ...prev.history].slice(0, 50);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('aviator_history', JSON.stringify(newHistory));
-            }
             return {
               ...prev,
               status: GameStatus.CRASHED,
               currentMultiplier: prev.crashPoint,
               startTime: now,
-              history: newHistory
+              timer: 3
             };
           }
-          // Avoid tiny micro-updates that don't visualy matter but trigger effects
           if (Math.abs(prev.currentMultiplier - actualMult) < 0.001) return prev;
           return { ...prev, currentMultiplier: actualMult };
         }
 
         if (prev.status === GameStatus.CRASHED) {
           const remaining = Math.max(0, 3 - Math.floor(elapsed));
-          if (remaining === 0) {
-            return {
-              ...prev,
-              status: GameStatus.WAITING,
-              currentMultiplier: 1.0,
-              startTime: now,
-              crashPoint: generateCrashPoint(),
-              timer: 5
-            };
-          }
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
@@ -282,19 +247,9 @@ export default function App() {
     };
 
     const poll = async () => {
-      // If we switched to local engine, don't attempt fetch
-      if (!apiAvailable) {
-        runEngine();
-        setIsSynced(true);
-        return;
-      }
-
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // Increased timeout
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         
         const res = await fetch('/api/game-state', { 
           signal: controller.signal,
@@ -311,65 +266,53 @@ export default function App() {
                 setTimeOffset(data.serverTime - Date.now());
               }
               setGameState(prev => {
-                const statusChanged = prev.status !== data.status;
-                const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
-                const timerChanged = prev.timer !== data.timer;
+                const historyChanged = JSON.stringify(prev.history) !== JSON.stringify(data.history);
                 
-                const serverHistory = data.history || [];
-                let mergedHistory = prev.history;
-                let historyUpdated = false;
+                // On first sync or status change, we snap to server's state
+                if (!isSynced || prev.status !== data.status) {
+                  return {
+                    ...data,
+                    history: data.history || []
+                  };
+                }
 
-                if (serverHistory.length > 0) {
-                  if (mergedHistory.length === 0 || serverHistory[0] !== mergedHistory[0]) {
-                    const newItems: number[] = [];
-                    for (const h of serverHistory) {
-                      if (mergedHistory.length > 0 && h === mergedHistory[0]) break;
-                      newItems.push(h);
-                    }
-                    
-                    if (newItems.length > 0) {
-                      mergedHistory = [...newItems, ...mergedHistory].slice(0, 50);
-                      historyUpdated = true;
-                    }
+                // If flying, we only snap if jitter is high
+                if (data.status === GameStatus.FLYING) {
+                  const drift = Math.abs(prev.currentMultiplier - data.currentMultiplier);
+                  if (drift > 0.05) {
+                    return { ...data, history: data.history || prev.history };
                   }
                 }
 
-                if (historyUpdated) {
-                  localStorage.setItem('aviator_history', JSON.stringify(mergedHistory));
-                }
-
-                if (!statusChanged && !multChanged && !timerChanged && !historyUpdated && isSynced) {
-                  return prev;
-                }
-
                 return {
-                  ...data,
-                  history: mergedHistory
+                  ...prev,
+                  history: historyChanged ? data.history : prev.history
                 };
               });
               setIsSynced(true);
+              setInitialLoading(false);
             }
-          } else {
-            console.warn("API returned non-JSON response");
-            setApiAvailable(false);
-            setIsSynced(true);
           }
-        } else {
-          setApiAvailable(false);
-          setIsSynced(true);
         }
       } catch (err) {
         console.error("Polling error:", err);
-        setApiAvailable(false);
-        setIsSynced(true);
-      } finally {
-        isPollingRef.current = false;
       }
     };
 
-    interval = setInterval(poll, 1000); // Poll once per second for server state correction
-    return () => clearInterval(interval);
-  }, [apiAvailable]);
+    // Immediate poll
+    poll();
+
+    // Engine loop
+    interval = setInterval(runEngine, 33);
+    
+    // Correction polling loop - faster initially
+    const pollInterval = setInterval(poll, 500);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(pollInterval);
+    };
+  }, [timeOffset, isSynced]);
 
   // Reset bets on crash
   useEffect(() => {
@@ -462,6 +405,20 @@ export default function App() {
   const planeX = Math.min(88, coords.x);
   const planeY = Math.max(12, coords.y);
   const flightRotation = isFlying ? (angle + 45) : 0; // +45 to normalize Lucide icon
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0b] text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-accent-red border-t-transparent rounded-full animate-spin"></div>
+          <div className="flex flex-col items-center">
+            <span className="font-black text-xl italic tracking-tighter uppercase text-white leading-none">AVIATOR</span>
+            <span className="text-[10px] font-black text-accent-red uppercase tracking-[0.2em] mt-1">Syncing Engine...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
