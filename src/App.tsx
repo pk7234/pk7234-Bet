@@ -511,11 +511,14 @@ export default function App() {
                     <button onClick={() => setBetAmount1(b => Math.max(16, b - 1))} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
                     <button onClick={() => setBetAmount1(b => b + 1)} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
                   </div>
-                  <div className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-1.5 lg:p-3 text-center font-bold text-base lg:text-2xl text-white">
-                    {betAmount1.toFixed(2)}
-                  </div>
+                  <input 
+                    type="number"
+                    value={betAmount1}
+                    onChange={(e) => setBetAmount1(Math.max(0, Number(e.target.value)))}
+                    className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-1.5 lg:p-3 text-center font-bold text-base lg:text-2xl text-white w-full outline-none focus:border-accent-red/50"
+                  />
                   <div className="grid grid-cols-2 gap-1 lg:gap-2">
-                    {[16, 50, 100, 500].map(v => (
+                    {[16, 32, 64, 100].map(v => (
                       <button key={v} onClick={() => setBetAmount1(v)} className={`bg-white/5 rounded py-1 lg:py-2 text-[8px] lg:text-xs font-bold transition-all ${betAmount1 === v ? 'bg-accent-red text-white shadow-[0_0_10px_rgba(255,59,59,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
                         {v}
                       </button>
@@ -572,11 +575,14 @@ export default function App() {
                     <button onClick={() => setBetAmount2(b => Math.max(16, b - 1))} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">-</button>
                     <button onClick={() => setBetAmount2(b => b + 1)} className="bg-black/40 text-gray-400 p-1 lg:p-2 rounded-md w-full text-[10px] lg:text-xs border border-white/5 hover:text-white transition-colors">+</button>
                   </div>
-                  <div className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-1.5 lg:p-3 text-center font-bold text-base lg:text-2xl text-white">
-                    {betAmount2.toFixed(2)}
-                  </div>
+                  <input 
+                    type="number"
+                    value={betAmount2}
+                    onChange={(e) => setBetAmount2(Math.max(0, Number(e.target.value)))}
+                    className="bg-[#0d0d10] border border-[#32323d] rounded-lg p-1.5 lg:p-3 text-center font-bold text-base lg:text-2xl text-white w-full outline-none focus:border-accent-blue/50"
+                  />
                   <div className="grid grid-cols-2 gap-1 lg:gap-2">
-                    {[16, 50, 100, 500].map(v => (
+                    {[16, 32, 64, 100].map(v => (
                       <button key={v} onClick={() => setBetAmount2(v)} className={`bg-white/5 rounded py-1 lg:py-2 text-[8px] lg:text-xs font-bold transition-all ${betAmount2 === v ? 'bg-accent-blue text-white shadow-[0_0_10px_rgba(52,152,219,0.3)]' : 'text-gray-400 hover:bg-white/10'}`}>
                         {v}
                       </button>
