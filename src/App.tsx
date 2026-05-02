@@ -35,14 +35,19 @@ const generateCrashPoint = () => {
 };
 
 export default function App() {
-  const [gameState, setGameState] = useState<GameState>({
-    status: GameStatus.WAITING,
-    currentMultiplier: 1.0,
-    startTime: Date.now(),
-    crashPoint: generateCrashPoint(),
-    history: [],
-    timer: 5
+  const [gameState, setGameState] = useState<GameState>(() => {
+    // Try to load history from local storage as a fallback for screen refreshes
+    const savedHistory = typeof window !== 'undefined' ? localStorage.getItem('aviator_history') : null;
+    return {
+      status: GameStatus.WAITING,
+      currentMultiplier: 1.0,
+      startTime: Date.now(),
+      crashPoint: generateCrashPoint(),
+      history: savedHistory ? JSON.parse(savedHistory) : [],
+      timer: 5
+    };
   });
+  const [isSynced, setIsSynced] = useState(false);
   const [balance, setBalance] = useState(1000);
   
   // Bet 1 States
@@ -287,16 +292,24 @@ export default function App() {
               const statusChanged = prev.status !== data.status;
               const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
               const timerChanged = prev.timer !== data.timer;
+              const historyChanged = data.history && data.history.length > 0 && 
+                                   (prev.history.length === 0 || data.history[0] !== prev.history[0]);
 
-              if (!statusChanged && !multChanged && !timerChanged) {
+              if (!statusChanged && !multChanged && !timerChanged && !historyChanged && isSynced) {
                 return prev;
               }
               
+              // Persist history to localStorage
+              if (historyChanged || statusChanged) {
+                localStorage.setItem('aviator_history', JSON.stringify(data.history || []));
+              }
+
               return {
                 ...data,
-                history: (prev.history.length === 0 || statusChanged) ? data.history : prev.history
+                history: (data.history && data.history.length > 0) ? data.history : prev.history
               };
             });
+            setIsSynced(true);
           }
         } else {
           setApiAvailable(false);
@@ -459,29 +472,32 @@ export default function App() {
             <div className="lg:col-span-3 order-1 lg:order-2 flex flex-col gap-2">
               
               {/* History Bar */}
-              <div className="glass rounded-xl p-1.5 flex items-center gap-2 overflow-hidden relative">
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1">
+              <div className="glass rounded-xl p-1 flex sm:p-1.5 items-center gap-1 sm:gap-2 overflow-hidden relative">
+                <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1">
                   {gameState.history.map((h, i) => (
                     <motion.div 
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       key={i} 
-                      className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold shrink-0 shadow-sm border ${
-                        h >= 10.0 ? 'text-pink-400 border-pink-400/30' :
-                        h >= 2.0 ? 'text-accent-blue border-accent-blue/30' : 
-                        'text-gray-400 border-white/10'
+                      className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold shrink-0 shadow-sm border ${
+                        h >= 10.0 ? 'text-pink-400 border-pink-400/30 bg-pink-400/5' :
+                        h >= 2.0 ? 'text-accent-blue border-accent-blue/30 bg-accent-blue/5' : 
+                        'text-gray-400 border-white/10 bg-white/5'
                       }`}
                     >
                       {h.toFixed(2)}x
                     </motion.div>
                   ))}
+                  {gameState.history.length === 0 && (
+                    <div className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-2">Waiting for results...</div>
+                  )}
                 </div>
                 <button 
                   onClick={() => setShowFullHistory(true)}
-                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 transition-colors shrink-0 flex items-center gap-1"
+                  className="p-1 px-2 bg-white/10 hover:bg-white/20 rounded-lg text-white/80 transition-colors shrink-0 flex items-center gap-1 border border-white/5 ml-1"
                 >
-                  <History className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-bold hidden sm:inline">MORE</span>
+                  <History className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase">MORE</span>
                 </button>
               </div>
 
@@ -536,6 +552,14 @@ export default function App() {
 
           {/* Game Area */}
           <div className="relative aspect-[16/10] sm:aspect-video lg:flex-1 bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex flex-col items-center justify-center shadow-[inset_0_0_100px_rgba(255,20,20,0.05)] min-h-[240px] lg:min-h-[460px]">
+            {!isSynced && (
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-8 h-8 border-4 border-accent-red border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-[10px] font-black tracking-widest text-white/50 uppercase">Syncing Engine...</span>
+                </div>
+              </div>
+            )}
             {/* Speed Parallax Background Layers */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
                {/* Distant Stars/Dots */}
