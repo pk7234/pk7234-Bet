@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plane, History, Wallet, TrendingUp, Users, Settings, Info, Menu, LogOut, Shield, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Plane, History, Wallet, TrendingUp, Users, Settings, Info, Menu, LogOut, Shield, ArrowUpCircle, ArrowDownCircle, Home, Share2, User as UserIcon, ChevronRight, Copy, Heart } from 'lucide-react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
@@ -41,12 +41,16 @@ export default function App() {
   const [showTransModal, setShowTransModal] = useState<{ open: boolean, type: 'deposit' | 'withdrawal' }>({ open: false, type: 'deposit' });
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'history' | 'wallet' | 'invite' | 'profile'>('home');
 
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        // Special Admin Logic
+        const IS_SPECIFIC_ADMIN = u.email === 'fast8585100@gmail.com';
+        
         const userRef = doc(db, 'users', u.uid);
         const userSnap = await getDoc(userRef);
         
@@ -55,14 +59,19 @@ export default function App() {
             email: u.email,
             phoneNumber: '',
             balance: 1000,
-            role: 'user',
+            role: IS_SPECIFIC_ADMIN ? 'admin' : 'user',
             createdAt: serverTimestamp()
           });
           setBalance(1000);
-          setIsAdmin(false);
+          setIsAdmin(IS_SPECIFIC_ADMIN);
         } else {
           setBalance(userSnap.data().balance);
-          setIsAdmin(userSnap.data().role === 'admin');
+          setIsAdmin(IS_SPECIFIC_ADMIN || userSnap.data().role === 'admin');
+          
+          // Auto-update role if it's the specific admin email
+          if (IS_SPECIFIC_ADMIN && userSnap.data().role !== 'admin') {
+            await updateDoc(userRef, { role: 'admin' });
+          }
         }
 
         const unsubBalance = onSnapshot(userRef, (docSnap) => {
@@ -274,14 +283,14 @@ export default function App() {
   const flightRotation = -5 - (progress / 12); 
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30">
+    <div className="min-h-screen bg-[#0a0a0b] text-[#e2e2e7] font-sans selection:bg-accent-red/30 pb-20 lg:pb-0">
       {/* Top Bar */}
       <header className="h-[50px] lg:h-[60px] glass flex items-center justify-between px-2 lg:px-6 sticky top-0 z-[100] rounded-none border-t-0 border-x-0 border-b border-white/5 bg-black/80 backdrop-blur-xl">
-        <div className="flex items-center gap-1.5 lg:gap-3">
-          <div className="w-7 h-7 lg:w-9 lg:h-9 bg-accent-red rounded flex items-center justify-center shadow-[0_0_15px_rgba(255,59,59,0.4)] shrink-0">
+        <div className="flex items-center gap-1.5 lg:gap-3" onClick={() => setActiveTab('home')}>
+          <div className="w-7 h-7 lg:w-9 lg:h-9 bg-accent-red rounded flex items-center justify-center shadow-[0_0_15px_rgba(255,59,59,0.4)] shrink-0 cursor-pointer">
             <Plane className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-current -rotate-45" />
           </div>
-          <div className="flex flex-col lg:flex-row lg:items-baseline lg:gap-2">
+          <div className="flex flex-col lg:flex-row lg:items-baseline lg:gap-2 cursor-pointer">
             <span className="font-black text-xs lg:text-xl italic tracking-tighter uppercase text-white leading-none">AVIATOR</span>
             <span className="text-[7px] lg:text-[10px] font-black text-accent-red uppercase tracking-[0.2em] leading-none">PRO</span>
           </div>
@@ -291,7 +300,7 @@ export default function App() {
           {!user ? (
             <button 
               onClick={() => setShowAuthModal(true)}
-              className="px-2 lg:px-4 py-1.5 bg-accent-red text-white text-[9px] lg:text-xs font-black rounded-md hover:bg-accent-red/80 transition-all uppercase tracking-widest whitespace-nowrap shadow-[0_5px_15px_rgba(255,59,59,0.2)]"
+              className="px-4 py-1.5 bg-accent-red text-white text-[9px] lg:text-xs font-black rounded-md hover:bg-accent-red/80 transition-all uppercase tracking-widest whitespace-nowrap shadow-[0_5px_15px_rgba(255,59,59,0.2)]"
             >
               SIGN UP
             </button>
@@ -305,43 +314,14 @@ export default function App() {
                   <Shield className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
                 </button>
               )}
-              <div 
-                className="hidden sm:flex items-center gap-2 px-3 py-1 bg-black/40 rounded-full border border-white/10 group relative cursor-pointer" 
-                onClick={() => signOut(auth)}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
-                <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest truncate max-w-[60px]">
-                  {user.email.split('@')[0]}
+              <div className="flex items-center gap-1.5 lg:gap-2 px-3 py-1 bg-black/40 rounded-lg border border-white/10">
+                <span className="text-[6px] lg:text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-0.5">Balance</span>
+                <span className="text-[10px] lg:text-sm font-bold text-[#2ecc71] tracking-tight whitespace-nowrap">
+                  {formatCurrency(balance)}
                 </span>
               </div>
             </div>
           )}
-
-          <div className="flex items-center gap-1 lg:gap-2 pl-2 lg:pl-4 pr-1 lg:pr-2 py-0.5 lg:py-1 bg-black/40 rounded-lg border border-white/10">
-            <div className="flex flex-col items-end mr-1 lg:mr-2">
-               <span className="text-[6px] lg:text-[8px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-0.5">Balance</span>
-               <span className="text-[10px] lg:text-sm font-bold text-[#2ecc71] tracking-tight leading-none whitespace-nowrap">
-                 {formatCurrency(balance)}
-               </span>
-            </div>
-            {user && (
-              <div className="flex gap-0.5 border-l border-white/5 pl-1 lg:pl-2">
-                <button 
-                  onClick={() => setShowTransModal({ open: true, type: 'deposit' })}
-                  className="p-1 text-[#2ecc71] hover:bg-[#2ecc71]/10 rounded transition-colors"
-                >
-                  <ArrowUpCircle className="w-4 h-4 lg:w-5 lg:h-5" />
-                </button>
-                <button 
-                  onClick={() => setShowTransModal({ open: true, type: 'withdrawal' })}
-                  className="p-1 text-accent-red hover:bg-accent-red/10 rounded transition-colors"
-                >
-                  <ArrowDownCircle className="w-4 h-4 lg:w-5 lg:h-5" />
-                </button>
-              </div>
-            )}
-          </div>
-          
           <div className="hidden xs:flex items-center gap-1 text-[9px] lg:text-xs font-bold px-1.5 lg:px-3 py-1 bg-accent-blue/10 rounded-lg text-accent-blue border border-accent-blue/20">
              <span className="animate-pulse">●</span>
              <span>LIVE</span>
@@ -349,13 +329,14 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-[1400px] mx-auto p-2 grid grid-cols-1 lg:grid-cols-4 gap-2">
-        
-        {/* Center - Game Display (Now first for mobile "Top" layout) */}
-        <div className="lg:col-span-3 order-1 lg:order-2 flex flex-col gap-2">
-          
-          {/* History Bar */}
+      {/* View Switcher */}
+      <div className="min-h-[calc(100vh-120px)]">
+        {activeTab === 'home' && (
+          <main className="max-w-[1400px] mx-auto p-2 grid grid-cols-1 lg:grid-cols-4 gap-2">
+            {/* Center - Game Display */}
+            <div className="lg:col-span-3 order-1 lg:order-2 flex flex-col gap-2">
+              
+              {/* History Bar */}
           <div className="glass rounded-xl p-2 flex items-center gap-3 overflow-hidden">
             <div className="flex items-center gap-1.5 text-gray-500 border-r border-white/5 pr-3 shrink-0">
                <History className="w-4 h-4" />
@@ -675,8 +656,229 @@ export default function App() {
           </div>
         </div>
       </main>
+        )}
 
-      <footer className="max-w-[1400px] mx-auto p-4 lg:px-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4 mt-4">
+        {activeTab === 'history' && (
+          <div className="max-w-2xl mx-auto p-4">
+             <div className="glass rounded-2xl overflow-hidden shadow-2xl">
+                <div className="p-6 border-b border-white/5 bg-black/40 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-accent-blue/20 rounded-xl flex items-center justify-center text-accent-blue shadow-[0_0_20px_rgba(52,152,219,0.3)]">
+                    <History className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-black italic tracking-tighter uppercase">Global History</h2>
+                </div>
+                <div className="p-4 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                   <table className="w-full text-sm">
+                      <thead className="text-gray-500 uppercase text-[10px] font-black tracking-widest">
+                        <tr className="border-b border-white/5">
+                           <th className="text-left py-3">Round</th>
+                           <th className="text-right py-3">Multiplier</th>
+                           <th className="text-right py-3">Hash</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {gameState.history.map((h, i) => (
+                           <tr key={i} className="hover:bg-white/5 transition-colors">
+                              <td className="py-3 text-gray-400 font-mono text-xs">#{5000 - i}</td>
+                              <td className={`py-3 text-right font-black italic ${h >= 2 ? 'text-accent-blue' : 'text-accent-red'}`}>{h.toFixed(2)}x</td>
+                              <td className="py-3 text-right text-gray-600 font-mono text-[9px] uppercase">{(i * 12345678).toString(16).padEnd(10, '0')}</td>
+                           </tr>
+                        ))}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'wallet' && (
+          <div className="max-w-xl mx-auto p-4 flex flex-col gap-4">
+             <div className="glass rounded-2xl p-6 bg-gradient-to-br from-black/40 to-black/20 shadow-2xl">
+                <div className="flex items-center gap-3 mb-8">
+                   <div className="w-12 h-12 bg-[#2ecc71]/20 rounded-2xl flex items-center justify-center text-[#2ecc71] shadow-[0_0_20px_rgba(46,204,113,0.3)]">
+                      <Wallet className="w-7 h-7" />
+                   </div>
+                   <div>
+                      <h2 className="text-xl font-black italic tracking-tighter uppercase leading-none">Wallet</h2>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Manage your funds</p>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                   <div className="p-6 bg-black/40 rounded-xl border border-white/5 group hover:border-[#2ecc71]/50 transition-all cursor-pointer" onClick={() => setShowTransModal({ open: true, type: 'deposit' })}>
+                      <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                            <div className="p-3 bg-[#2ecc71]/10 text-[#2ecc71] rounded-xl group-hover:scale-110 transition-transform">
+                               <ArrowUpCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                               <h3 className="font-bold text-white uppercase tracking-tight">Deposit Funds</h3>
+                               <p className="text-[10px] text-gray-500 uppercase tracking-widest">Instant funding via Crypto/UPI</p>
+                            </div>
+                         </div>
+                         <ChevronRight className="w-5 h-5 text-gray-700" />
+                      </div>
+                   </div>
+
+                   <div className="p-6 bg-black/40 rounded-xl border border-white/5 group hover:border-accent-red/50 transition-all cursor-pointer" onClick={() => setShowTransModal({ open: true, type: 'withdrawal' })}>
+                      <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                            <div className="p-3 bg-accent-red/10 text-accent-red rounded-xl group-hover:scale-110 transition-transform">
+                               <ArrowDownCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                               <h3 className="font-bold text-white uppercase tracking-tight">Withdraw Funds</h3>
+                               <p className="text-[10px] text-gray-500 uppercase tracking-widest">Fast withdrawal to your account</p>
+                            </div>
+                         </div>
+                         <ChevronRight className="w-5 h-5 text-gray-700" />
+                      </div>
+                   </div>
+                </div>
+             </div>
+
+             <div className="glass rounded-2xl p-6 shadow-xl">
+                 <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 px-2">Recent Transactions</h3>
+                 <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 opacity-50">
+                         <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center text-gray-500">
+                               <History className="w-4 h-4" />
+                            </div>
+                            <div>
+                               <div className="text-[11px] font-bold text-white uppercase">Withdrawal</div>
+                               <div className="text-[8px] text-gray-600 uppercase tracking-widest">May {i+1}, 2024</div>
+                            </div>
+                         </div>
+                         <div className="text-right">
+                            <div className="text-[11px] font-bold text-accent-red">-Rs 500.00</div>
+                            <div className="text-[8px] text-accent-red uppercase font-bold tracking-widest">Processing</div>
+                         </div>
+                      </div>
+                    ))}
+                 </div>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'invite' && (
+          <div className="max-w-xl mx-auto p-4 flex flex-col gap-4">
+             <div className="glass rounded-2xl p-8 bg-gradient-to-br from-[#2ecc71]/10 to-transparent border-[#2ecc71]/20 shadow-2xl text-center">
+                <div className="w-20 h-20 bg-[#2ecc71]/20 text-[#2ecc71] rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-[0_20px_40px_rgba(46,204,113,0.2)]">
+                  <Heart className="w-10 h-10 fill-current" />
+                </div>
+                <h2 className="text-3xl font-black italic tracking-tighter uppercase mb-2">Refer & Earn</h2>
+                <p className="text-gray-400 text-sm mb-8 px-8">Invite your friends to Aviator Pro and earn up to 5% of their total bets for life!</p>
+                
+                <div className="bg-black/40 rounded-xl p-4 border border-white/5 flex items-center justify-between gap-4 group">
+                   <div className="flex-1 text-left">
+                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1 px-1">Your Referral Link</span>
+                      <div className="text-xs font-mono text-[#2ecc71] truncate bg-black/60 px-3 py-2 rounded-lg border border-white/5 select-all">
+                        https://aviator.pro/ref/{user?.uid?.slice(0, 8) || 'signup'}
+                      </div>
+                   </div>
+                   <button 
+                     onClick={() => {
+                        navigator.clipboard.writeText(`https://aviator.pro/ref/${user?.uid?.slice(0, 8) || 'signup'}`);
+                        alert('Link copied to clipboard!');
+                     }}
+                     className="bg-accent-blue p-3 rounded-xl text-white shadow-lg hover:scale-105 active:scale-95 transition-all"
+                   >
+                      <Copy className="w-5 h-5" />
+                   </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-8">
+                   <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                      <span className="text-xl font-black text-white block">0</span>
+                      <span className="text-[8px] text-gray-500 uppercase tracking-widest font-black">Referrals</span>
+                   </div>
+                   <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                      <span className="text-xl font-black text-[#2ecc71] block">Rs 0</span>
+                      <span className="text-[8px] text-gray-500 uppercase tracking-widest font-black">Earned</span>
+                   </div>
+                   <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                      <span className="text-xl font-black text-accent-blue block">5%</span>
+                      <span className="text-[8px] text-gray-500 uppercase tracking-widest font-black">Commission</span>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="max-w-xl mx-auto p-4 flex flex-col gap-4">
+             <div className="glass rounded-2xl overflow-hidden shadow-2xl">
+                <div className="h-24 bg-gradient-to-r from-accent-red to-[#2ecc71] opacity-20" />
+                <div className="px-8 pb-8 -mt-12 text-center">
+                   <div className="w-24 h-24 bg-[#1b1b21] rounded-3xl border-4 border-[#0a0a0b] mx-auto flex items-center justify-center mb-4 overflow-hidden relative group">
+                      <div className="w-full h-full bg-accent-blue flex items-center justify-center text-3xl font-black italic text-white group-hover:scale-110 transition-transform">
+                         {user?.email?.charAt(0).toUpperCase()}
+                      </div>
+                   </div>
+                   <h2 className="text-xl font-black italic tracking-tighter uppercase text-white">{user?.email?.split('@')[0]}</h2>
+                   <p className="text-xs text-gray-500 font-mono mt-1">{user?.email}</p>
+
+                   <div className="mt-8 grid grid-cols-2 gap-4">
+                      <div className="bg-black/40 p-4 rounded-xl border border-white/5 text-left">
+                         <span className="text-[9px] text-gray-500 uppercase tracking-widest font-black block mb-1">Total Profits</span>
+                         <span className="text-lg font-black text-[#2ecc71] italic tracking-tighter">Rs 12,450.00</span>
+                      </div>
+                      <div className="bg-black/40 p-4 rounded-xl border border-white/5 text-left">
+                         <span className="text-[9px] text-gray-500 uppercase tracking-widest font-black block mb-1">Rank</span>
+                         <span className="text-lg font-black text-accent-blue italic tracking-tighter">Silver Elite</span>
+                      </div>
+                   </div>
+
+                   <div className="mt-8 space-y-2">
+                       <button className="w-full bg-white/5 hover:bg-white/10 p-4 rounded-xl flex items-center justify-between group transition-all text-sm font-bold border border-white/5 uppercase tracking-tighter italic">
+                          <span className="flex items-center gap-3">
+                            <Settings className="w-4 h-4 text-gray-400 group-hover:rotate-45 transition-transform" />
+                            Security Settings
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-gray-700" />
+                       </button>
+                       <button 
+                         onClick={() => signOut(auth)}
+                         className="w-full bg-accent-red/10 hover:bg-accent-red/20 p-4 rounded-xl flex items-center gap-3 transition-all text-sm font-bold border border-accent-red/20 text-accent-red uppercase tracking-tighter italic"
+                       >
+                          <LogOut className="w-4 h-4" />
+                          Sign Out Account
+                       </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Navbar */}
+      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-black/80 backdrop-blur-2xl border-t border-white/10 z-[100] px-4 flex items-center justify-between lg:justify-center lg:gap-12">
+        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'text-accent-red' : 'text-gray-500 hover:text-white'}`}>
+           <Home className={`w-5 h-5 ${activeTab === 'home' ? 'fill-current' : ''}`} />
+           <span className="text-[9px] font-black uppercase tracking-tighter italic">Home</span>
+        </button>
+        <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-accent-blue' : 'text-gray-500 hover:text-white'}`}>
+           <History className="w-5 h-5" />
+           <span className="text-[9px] font-black uppercase tracking-tighter italic">History</span>
+        </button>
+        <div className="relative -top-3 lg:top-0">
+          <button onClick={() => setActiveTab('wallet')} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all bg-[#0a0a0b] border-2 shadow-2xl ${activeTab === 'wallet' ? 'text-[#2ecc71] border-[#2ecc71] shadow-[#2ecc71]/30' : 'text-gray-500 border-white/10 hover:border-white/20'}`}>
+             <Wallet className="w-7 h-7" />
+          </button>
+        </div>
+        <button onClick={() => setActiveTab('invite')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'invite' ? 'text-[#2ecc71]' : 'text-gray-500 hover:text-white'}`}>
+           <Share2 className="w-5 h-5" />
+           <span className="text-[9px] font-black uppercase tracking-tighter italic">Invite</span>
+        </button>
+        <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'profile' ? 'text-accent-blue' : 'text-gray-500 hover:text-white'}`}>
+           <UserIcon className={`w-5 h-5 ${activeTab === 'profile' ? 'fill-current' : ''}`} />
+           <span className="text-[9px] font-black uppercase tracking-tighter italic">Profile</span>
+        </button>
+      </nav>
+
+      <footer className="max-w-[1400px] mx-auto p-4 lg:px-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4 mt-4 pb-24">
          <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
                <div className="w-2 h-2 rounded-full bg-[#2ecc71] animate-pulse" />
