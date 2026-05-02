@@ -292,21 +292,38 @@ export default function App() {
               const statusChanged = prev.status !== data.status;
               const multChanged = Math.abs(prev.currentMultiplier - data.currentMultiplier) > 0.001;
               const timerChanged = prev.timer !== data.timer;
-              const historyChanged = data.history && data.history.length > 0 && 
-                                   (prev.history.length === 0 || data.history[0] !== prev.history[0]);
+              
+              const serverHistory = data.history || [];
+              let mergedHistory = prev.history;
+              let historyUpdated = false;
 
-              if (!statusChanged && !multChanged && !timerChanged && !historyChanged && isSynced) {
+              if (serverHistory.length > 0) {
+                // If top item is different, we definitely have new rounds
+                if (mergedHistory.length === 0 || serverHistory[0] !== mergedHistory[0]) {
+                  const newItems: number[] = [];
+                  for (const h of serverHistory) {
+                    if (mergedHistory.length > 0 && h === mergedHistory[0]) break;
+                    newItems.push(h);
+                  }
+                  
+                  if (newItems.length > 0) {
+                    mergedHistory = [...newItems, ...mergedHistory].slice(0, 50);
+                    historyUpdated = true;
+                  }
+                }
+              }
+
+              if (!statusChanged && !multChanged && !timerChanged && !historyUpdated && isSynced) {
                 return prev;
               }
               
-              // Persist history to localStorage
-              if (historyChanged || statusChanged) {
-                localStorage.setItem('aviator_history', JSON.stringify(data.history || []));
+              if (historyUpdated) {
+                localStorage.setItem('aviator_history', JSON.stringify(mergedHistory));
               }
 
               return {
                 ...data,
-                history: (data.history && data.history.length > 0) ? data.history : prev.history
+                history: mergedHistory
               };
             });
             setIsSynced(true);
