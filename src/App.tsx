@@ -165,8 +165,33 @@ export default function App() {
   const [winMessage, setWinMessage] = useState<{ amount: number, mult: number } | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+
+  // Pending Transactions Listener for Admin
+  useEffect(() => {
+    if (!isAdmin || !user) {
+      setPendingCount(0);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'transactions'),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingCount(snapshot.size);
+      if (snapshot.size > pendingCount && pendingCount !== 0) {
+        triggerNotification("New pending transaction request!");
+      }
+    }, (error) => {
+      console.error("Error listening to pending transactions:", error);
+    });
+
+    return () => unsubscribe();
+  }, [isAdmin, user]);
   
   // Audio Refs
   const engineAudio = useRef<HTMLAudioElement | null>(null);
@@ -598,10 +623,13 @@ export default function App() {
               {isAdmin && (
                 <button 
                   onClick={() => setShowAdminPanel(true)} 
-                  className="px-4 py-2 bg-accent-blue/10 hover:bg-accent-blue/20 text-accent-blue rounded-lg border border-accent-blue/20 flex items-center gap-2 transition-all animate-pulse hover:animate-none"
+                  className="px-4 py-2 bg-accent-blue/10 hover:bg-accent-blue/20 text-accent-blue rounded-lg border border-accent-blue/20 flex items-center gap-2 transition-all relative"
                 >
                   <Shield className="w-4 h-4" />
                   <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Admin Panel</span>
+                  {pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent-red rounded-full border-2 border-[#0a0a0b] animate-pulse shadow-[0_0_8px_rgba(255,59,59,0.8)]" />
+                  )}
                 </button>
               )}
               <div className="px-4 py-2 bg-black/40 rounded-lg border border-white/10 flex items-center gap-2">
