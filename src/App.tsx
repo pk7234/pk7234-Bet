@@ -116,6 +116,9 @@ export default function App() {
   const [bet2, setBet2] = useState<{ amount: number; active: boolean } | null>(null);
   
   const [lastWin, setLastWin] = useState<number | null>(null);
+  const [queuedBet1, setQueuedBet1] = useState<number | null>(null);
+  const [queuedBet2, setQueuedBet2] = useState<number | null>(null);
+  const [winMessage, setWinMessage] = useState<{ amount: number, mult: number } | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -357,9 +360,38 @@ export default function App() {
     };
   }, []);
 
+  // Automatically process queued bets when game starts waiting
+  useEffect(() => {
+    if (gameState.status === GameStatus.WAITING) {
+      if (queuedBet1 !== null) {
+        setBet1({ amount: queuedBet1, active: true });
+        setQueuedBet1(null);
+      }
+      if (queuedBet2 !== null) {
+        setBet2({ amount: queuedBet2, active: true });
+        setQueuedBet2(null);
+      }
+    }
+  }, [gameState.status]);
+
   const handlePlaceBet = async (num: 1 | 2) => {
-    if (gameState.status !== GameStatus.WAITING) return;
     const amount = num === 1 ? betAmount1 : betAmount2;
+    
+    // If not waiting, queue it for next round
+    if (gameState.status !== GameStatus.WAITING) {
+      if (balance < amount) return alert('Insufficient balance');
+      
+      setBalance(prev => prev - amount);
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { balance: increment(-amount) });
+      }
+
+      if (num === 1) setQueuedBet1(amount);
+      else setQueuedBet2(amount);
+      return;
+    }
+
     if (balance < amount) return alert('Insufficient balance');
     
     setBalance(prev => prev - amount);
@@ -377,7 +409,9 @@ export default function App() {
     const bet = num === 1 ? bet1 : bet2;
     if (!bet?.active) return;
 
-    const win = Math.floor(bet.amount * gameState.currentMultiplier * 100) / 100;
+    const mult = gameState.currentMultiplier;
+    const win = Math.floor(bet.amount * mult * 100) / 100;
+    
     setBalance(prev => prev + win);
     if (user) {
       const userRef = doc(db, 'users', user.uid);
@@ -387,6 +421,9 @@ export default function App() {
     if (num === 1) setBet1(null);
     else setBet2(null);
 
+    setWinMessage({ amount: win, mult });
+    setTimeout(() => setWinMessage(null), 2500);
+    
     setLastWin(win);
     setTimeout(() => setLastWin(null), 3000);
   };
@@ -537,6 +574,21 @@ export default function App() {
                 </div>
 
                 <AnimatePresence mode="wait">
+                  {winMessage && (
+                    <motion.div 
+                      initial={{ scale: 0.5, opacity: 0, y: 50 }} 
+                      animate={{ scale: 1, opacity: 1, y: 0 }} 
+                      exit={{ scale: 1.5, opacity: 0, y: -50 }}
+                      className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-none"
+                    >
+                      <div className="bg-[#2ecc71] px-8 py-4 rounded-[2rem] shadow-[0_0_50px_rgba(46,204,113,0.5)] border-2 border-white/20 flex flex-col items-center">
+                        <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] mb-1">Success!</span>
+                        <div className="text-4xl font-black text-white italic tracking-tighter">Rs. {winMessage.amount.toFixed(2)}</div>
+                        <div className="text-xs font-bold text-white/80">At {winMessage.mult.toFixed(2)}x</div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {gameState.status === GameStatus.WAITING && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
                       <div className="text-gray-500 text-xs font-black uppercase tracking-[0.4em] mb-4">Next Round In</div>
@@ -625,13 +677,21 @@ export default function App() {
                       </div>
                     </div>
                     <div className="flex-1 h-full">
-                      {!(num === 1 ? bet1 : bet2) ? (
+                      {!(num === 1 ? (bet1 || queuedBet1) : (bet2 || queuedBet2)) ? (
                         <button 
                           onClick={() => handlePlaceBet(num as 1 | 2)} 
                           className="w-full h-full bg-[#28a745] hover:bg-[#2ecc71] text-white rounded-xl font-black text-2xl flex flex-col items-center justify-center shadow-lg transition-all active:scale-95"
                         >
-                          <span className="text-xs font-normal opacity-70 uppercase">BET</span>
+                          <span className="text-xs font-normal opacity-70 uppercase tracking-widest">BET</span>
                           {formatCurrency(num === 1 ? betAmount1 : betAmount2)}
+                        </button>
+                      ) : (num === 1 ? queuedBet1 : queuedBet2) ? (
+                        <button 
+                          disabled
+                          className="w-full h-full bg-accent-blue/10 border-2 border-accent-blue/30 text-accent-blue rounded-xl font-black text-xl flex flex-col items-center justify-center shadow-[0_0_20px_rgba(52,152,219,0.3)] transition-all animate-pulse"
+                        >
+                          <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1">QUEUED</span>
+                          <span className="text-[8px] opacity-60 font-bold uppercase">Ready for Next Round</span>
                         </button>
                       ) : (
                         <button 
@@ -639,8 +699,8 @@ export default function App() {
                           disabled={gameState.status !== GameStatus.FLYING}
                           className="w-full h-full bg-[#f39c12] hover:bg-[#e67e22] text-white rounded-xl font-black text-2xl flex flex-col items-center justify-center shadow-lg transition-all active:scale-95 disabled:opacity-50"
                         >
-                          <span className="text-xs font-normal opacity-70 uppercase">CASH OUT</span>
-                          {gameState.status === GameStatus.FLYING && formatCurrency((num === 1 ? bet1! : bet2!).amount * gameState.currentMultiplier)}
+                          <span className="text-xs font-normal opacity-70 uppercase tracking-widest">CASH OUT</span>
+                          {gameState.status === GameStatus.FLYING && formatCurrency(((num === 1 ? bet1 : bet2)?.amount || 0) * gameState.currentMultiplier)}
                         </button>
                       )}
                     </div>

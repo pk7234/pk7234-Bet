@@ -347,6 +347,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
                           {req.status === 'approved' ? <CheckCircle className="w-5 h-5 md:w-6 md:h-6" /> : <X className="w-5 h-5 md:w-6 md:h-6" />}
                        </div>
                        <span className="text-[9px] md:text-[10px] font-black text-white uppercase tracking-[0.2em]">{req.status}</span>
+                       {req.processedAt && (
+                         <span className="text-[8px] text-gray-500 font-bold uppercase mt-1">
+                           Done: {req.processedAt.toDate ? req.processedAt.toDate().toLocaleString() : new Date(req.processedAt).toLocaleString()}
+                         </span>
+                       )}
                     </div>
                   )}
                 </div>
