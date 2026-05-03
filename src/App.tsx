@@ -99,7 +99,7 @@ export default function App() {
       if (snap.exists()) {
         const data = snap.data();
         setGameState(prev => {
-          // If we receive a status change or we haven't synced yet, take the whole state
+          // If status changed or we haven't synced yet, take the whole state
           if (prev.status !== data.status) {
             return {
               ...prev,
@@ -108,22 +108,23 @@ export default function App() {
             };
           }
 
-          // If flying, only sync if drift is large to avoid jitter
-          if (data.status === GameStatus.FLYING) {
-            const drift = Math.abs(prev.currentMultiplier - data.currentMultiplier);
-            if (drift > 0.5) { // Larger threshold for Firestore sync
-              return { ...prev, ...data };
-            }
+          // Performance: only sync multiplier if drift is significant (> 0.2)
+          // This prevents fighting between local engine and Firestore updates
+          const drift = Math.abs(prev.currentMultiplier - (data.currentMultiplier || 1.0));
+          if (drift > 0.2) {
+            return {
+              ...prev,
+              ...data,
+              history: data.history || prev.history
+            };
           }
 
-          // Otherwise just update history if it changed
-          return {
-            ...prev,
-            history: data.history || prev.history
-          };
+          // If no significant change, return prev to bail out of re-render
+          return prev;
         });
-        setIsSynced(true);
-        setInitialLoading(false);
+        
+        setIsSynced(prev => prev ? prev : true);
+        setInitialLoading(prev => prev ? false : prev);
         clearTimeout(fallbackTimer);
       }
     }, (err) => {
@@ -234,20 +235,36 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
+    let unsubscribeProfile: (() => void) | null = null;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      
+      // Cleanup previous profile listener if any
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
       if (u) {
         const userRef = doc(db, 'users', u.uid);
-        onSnapshot(userRef, (docSnap) => {
+        unsubscribeProfile = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
-            setBalance(docSnap.data().balance);
-            setIsAdmin(docSnap.data().role === 'admin');
+            const data = docSnap.data();
+            // Use functional updates to ensure we only re-render if value actually changed
+            setBalance(data.balance);
+            setIsAdmin(data.role === 'admin');
           }
         }, (err) => {
           console.error("User profile sync error:", err);
         });
       }
     });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   const handlePlaceBet = async (num: 1 | 2) => {
