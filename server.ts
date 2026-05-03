@@ -57,7 +57,14 @@ async function startServer() {
   try {
     const historySnap = await getDoc(doc(db, "game", "history"));
     if (historySnap.exists()) {
-      state.history = historySnap.data().values || [];
+      const rawHistory = historySnap.data().values || [];
+      // Cleanup duplicates from existing history
+      state.history = rawHistory.filter((val: number, idx: number) => idx === 0 || val !== rawHistory[idx - 1]).slice(0, 50);
+      
+      if (state.history.length !== rawHistory.length) {
+        console.log("Cleaned up duplicated history entries");
+        await setDoc(doc(db, "game", "history"), { values: state.history });
+      }
       console.log("Loaded history from Firestore:", state.history.length, "items");
     }
 
@@ -107,7 +114,11 @@ async function startServer() {
         state.currentMultiplier = state.crashPoint;
         state.status = GameStatus.CRASHED;
         state.startTime = now;
-        state.history = [state.crashPoint, ...state.history].slice(0, 50);
+        
+        // Only add to history if it's not a duplicate (safety check)
+        if (state.history.length === 0 || state.history[0] !== state.crashPoint || (state.history.length > 1 && state.history[1] === state.crashPoint)) {
+           state.history = [state.crashPoint, ...state.history].slice(0, 50);
+        }
         
         // Persist to Firestore
         try {

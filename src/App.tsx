@@ -93,40 +93,45 @@ function TransactionList({ userId }: { userId: string }) {
 }
 
 const getMultColor = (val: number) => {
-  if (val < 2) return 'text-[#34b6db]'; // Cyan/Blue
-  if (val < 10) return 'text-[#9b59b6]'; // Purple
-  return 'text-[#c0392b]'; // Dark Red / Pink
+  if (val < 1.2) return 'text-[#34b6db]'; // Light Blue
+  if (val < 2) return 'text-[#9b59b6]'; // Purple
+  if (val < 10) return 'text-[#34b6db]'; // Most Aviator apps use cyan for low, then purple, then pink/red
+  return 'text-[#c0392b]'; // Dark Red
+};
+
+// Based on standard Aviator colors
+const getHistoryColor = (val: number) => {
+  if (val < 2) return 'text-[#34b6db]'; // Blue
+  if (val < 10) return 'text-[#913dff]'; // Purple
+  return 'text-[#c01d2e]'; // Red
 };
 
 const PlaneIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
-    {/* Propeller Plane - Classic Aviator Style */}
-    {/* Main Body/Fuselage */}
+    {/* Body */}
     <path 
-      d="M15 45 C 20 35, 70 35, 85 45 C 95 50, 85 60, 15 55 Z" 
+      d="M10 50 Q 30 40 85 45 Q 95 48 85 55 Q 30 60 10 50" 
       fill="#ff3b3b" 
+      stroke="#7b1414"
+      strokeWidth="0.5"
     />
-    {/* Tail Fin */}
-    <path d="M15 50 L 5 40 L 5 60 Z" fill="#ff3b3b" />
-    <path d="M12 48 L 8 30 L 22 45 Z" fill="#d32f2f" />
-    {/* Main Wing (Double Wing style) */}
-    <path d="M40 45 L 35 25 L 65 30 L 60 45 Z" fill="#d32f2f" />
-    <path d="M40 55 L 35 75 L 65 70 L 60 55 Z" fill="#d32f2f" />
-    {/* Cockpit Shell */}
-    <path d="M55 45 Q 65 40 70 45" fill="none" stroke="white" strokeWidth="2" opacity="0.8" />
-    {/* Engine Cowling */}
-    <circle cx="85" cy="50" r="6" fill="#b22222" />
-    {/* Propeller Blade Blur Animation */}
+    {/* Tail */}
+    <path d="M12 50 L 5 40 L 15 40 Z" fill="#ff3b3b" stroke="#7b1414" strokeWidth="0.5" />
+    <path d="M12 50 L 5 60 L 15 60 Z" fill="#ff3b3b" stroke="#7b1414" strokeWidth="0.5" />
+    {/* Upper Wing */}
+    <path d="M40 45 L 35 20 L 55 25 L 60 45 Z" fill="#d32f2f" stroke="#7b1414" strokeWidth="0.5" />
+    {/* Lower Wing */}
+    <path d="M40 55 L 35 80 L 55 75 L 60 55 Z" fill="#d32f2f" stroke="#7b1414" strokeWidth="0.5" />
+    {/* Propeller Blur */}
     <motion.g
       animate={{ rotate: 360 }}
       transition={{ duration: 0.05, repeat: Infinity, ease: "linear" }}
-      style={{ originX: '90px', originY: '50px' }}
+      style={{ originX: '88px', originY: '49.5px' }}
     >
-      <rect x="89" y="30" width="2" height="40" fill="#ffffff" opacity="0.6" rx="1" />
-      <rect x="70" y="49" width="40" height="2" fill="#ffffff" opacity="0.6" rx="1" />
+      <circle cx="88" cy="49.5" r="15" fill="none" stroke="white" strokeWidth="0.5" strokeDasharray="2 4" opacity="0.3" />
     </motion.g>
     {/* Propeller Hub */}
-    <circle cx="90" cy="50" r="2.5" fill="#ffffff" />
+    <circle cx="88" cy="49.5" r="2.5" fill="white" />
   </svg>
 );
 
@@ -587,32 +592,45 @@ export default function App() {
                 {gameState.history.length === 0 && <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">History empty</span>}
               </div>
 
-              <div className="relative aspect-video bg-[#0a0a0c] rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
+              <div className="relative aspect-video bg-[#000000] rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
                 {/* Dynamic Background Elements */}
                 <div className="absolute inset-0 pointer-events-none">
-                  {/* Radial Sunburst Rays - Sharp and dramatic */}
+                  {/* Radial Sunburst Rays - Deep and cinematic */}
                   <div className="absolute inset-0 bg-[#0c0c14]" />
                   
                   {gameState.status === GameStatus.FLYING && (
                     <motion.div 
                       key="rays"
                       initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.15 }}
-                      className="absolute inset-0 overflow-hidden"
+                      animate={{ opacity: 0.35 }}
+                      className="absolute bottom-0 left-0 w-[200%] h-[200%] origin-bottom-left"
                       style={{
-                        background: `conic-gradient(from 0deg at 0% 100%, transparent 0deg, #ff3b3b 2deg, transparent 10deg, #ff3b3b 12deg, transparent 20deg, #ff3b3b 22deg, transparent 30deg, #ff3b3b 32deg, transparent 40deg, #ff3b3b 42deg, transparent 50deg, #ff3b3b 52deg, transparent 60deg, #ff3b3b 62deg, transparent 70deg, #ff3b3b 72deg, transparent 80deg, #ff3b3b 82deg, transparent 90deg)`,
+                        background: `conic-gradient(from -30deg at 0% 100%, transparent 0deg, rgba(255,59,59,0.3) 15deg, transparent 30deg, rgba(255,59,59,0.2) 45deg, transparent 60deg, rgba(255,59,59,0.1) 75deg, transparent 90deg)`,
+                        filter: 'blur(30px)'
                       }}
+                    />
+                  )}
+                  
+                  {/* Secondary Rays */}
+                  {gameState.status === GameStatus.FLYING && (
+                    <motion.div 
+                      className="absolute inset-0 opacity-10"
+                      style={{
+                        background: `conic-gradient(from 0deg at 50% 50%, transparent 0deg, #ff3b3b 2deg, transparent 15deg, #ff3b3b 17deg, transparent 30deg)`,
+                      }}
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
                     />
                   )}
                   
                   {/* Scrolling Grid */}
                   <div 
-                    className="absolute inset-0 opacity-[0.03]"
+                    className="absolute inset-0 opacity-[0.04]"
                     style={{
-                      backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
-                      backgroundSize: '60px 60px',
+                      backgroundImage: `linear-gradient(to right, #444444 1px, transparent 1px), linear-gradient(to bottom, #444444 1px, transparent 1px)`,
+                      backgroundSize: '80px 80px',
                       transform: gameState.status === GameStatus.FLYING 
-                        ? `translate(-${(gameState.currentMultiplier * 40) % 60}px, ${(gameState.currentMultiplier * 40) % 60}px)` 
+                        ? `translate(-${(gameState.currentMultiplier * 50) % 80}px, ${(gameState.currentMultiplier * 50) % 80}px)` 
                         : 'none',
                     }}
                   />
@@ -664,25 +682,26 @@ export default function App() {
                   <svg className="w-full h-full" preserveAspectRatio="none">
                     {gameState.status === GameStatus.FLYING && (
                       <g>
-                        {/* Red wedge fill - More solid and consistent with screenshot */}
+                        {/* Red wedge fill - Deeper and more saturated like screenshot */}
                         <path
                           d={`M 0 100 Q ${coords.x / 2} 100 ${coords.x} ${coords.y} L ${coords.x} 100 L 0 100 Z`}
                           fill="url(#flightGradient)"
-                          className="opacity-70"
+                          className="opacity-80"
                         />
-                        {/* Top curve line - Slightly thicker */}
+                        {/* Top curve line - Bright and glowy */}
                         <path
                           d={`M 0 100 Q ${coords.x / 2} 100 ${coords.x} ${coords.y}`}
                           fill="none"
-                          stroke="#ff3939"
-                          strokeWidth="4"
+                          stroke="#ff1e1e"
+                          strokeWidth="5"
                           strokeLinecap="round"
-                          className="opacity-90"
+                          className="drop-shadow-[0_0_10px_rgba(255,59,59,0.8)]"
                         />
                         <defs>
                           <linearGradient id="flightGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#ff3939" stopOpacity="0.5" />
-                            <stop offset="100%" stopColor="#ff3939" stopOpacity="0.1" />
+                            <stop offset="0%" stopColor="#ff0000" stopOpacity="0.7" />
+                            <stop offset="60%" stopColor="#800000" stopOpacity="0.3" />
+                            <stop offset="100%" stopColor="#000000" stopOpacity="0" />
                           </linearGradient>
                         </defs>
                       </g>
