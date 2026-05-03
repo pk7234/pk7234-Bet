@@ -45,6 +45,21 @@
         }
       },
       "required": ["values"]
+    },
+    "GameState": {
+      "title": "Game State",
+      "description": "Current live game status",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "startTime": { "type": "number" },
+        "crashPoint": { "type": "number" },
+        "currentMultiplier": { "type": "number" },
+        "timer": { "type": "number" },
+        "history": { "type": "array", "items": { "type": "number" } },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["status", "startTime", "currentMultiplier"]
     }
   },
   "firestore": {
@@ -59,6 +74,10 @@
     "/game/history": {
       "schema": "GameHistory",
       "description": "Global game history results"
+    },
+    "/game/state": {
+      "schema": "GameState",
+      "description": "Live game machine state"
     }
   }
 }

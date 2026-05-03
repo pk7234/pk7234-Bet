@@ -39,7 +39,7 @@ service cloud.firestore {
       return data.email is string && data.email.size() <= 100 &&
              data.balance is number && data.balance >= 0 &&
              data.role in ['user', 'admin'] &&
-             data.phoneNumber is string && data.phoneNumber.size() <= 20;
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
     }
 
     function isValidTransaction(data) {
@@ -47,28 +47,37 @@ service cloud.firestore {
              data.type in ['deposit', 'withdrawal'] &&
              data.amount is number && data.amount > 0 &&
              data.status in ['pending', 'approved', 'rejected'] &&
-             (data.method == null || (data.method is string && data.method.size() <= 50)) &&
-             (data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 256)) &&
-             (data.screenshotUrl == null || (data.screenshotUrl is string && data.screenshotUrl.size() <= 1024)) &&
-             (data.accountNumber == null || (data.accountNumber is string && data.accountNumber.size() <= 100)) &&
-             (data.accountHolder == null || (data.accountHolder is string && data.accountHolder.size() <= 100)) &&
-             (data.seen == null || data.seen is bool);
+             (!('method' in data) || (data.method is string && data.method.size() <= 50)) &&
+             (!('transactionId' in data) || (data.transactionId is string && data.transactionId.size() <= 256)) &&
+             (!('screenshotUrl' in data) || (data.screenshotUrl is string && data.screenshotUrl.size() <= 1024)) &&
+             (!('accountNumber' in data) || (data.accountNumber is string && data.accountNumber.size() <= 100)) &&
+             (!('accountHolder' in data) || (data.accountHolder is string && data.accountHolder.size() <= 100)) &&
+             (!('seen' in data) || data.seen is bool);
     }
 
     function isValidGameHistory(data) {
       return data.values is list && data.values.size() <= 60;
     }
 
-    // ------------------------------------------------------------
-    // DEFAULT DENY
-    // ------------------------------------------------------------
-    match /{document=**} {
-      allow read, write: if false;
+    function isValidGameState(data) {
+      return data.status is string && 
+             data.startTime is number &&
+             data.currentMultiplier is number &&
+             (!('crashPoint' in data) || data.crashPoint is number) &&
+             (!('timer' in data) || data.timer is number) &&
+             (!('history' in data) || (data.history is list && data.history.size() <= 60)) &&
+             (!('lastUpdated' in data) || data.lastUpdated is timestamp);
     }
 
     // ------------------------------------------------------------
     // COLLECTIONS
     // ------------------------------------------------------------
+
+    match /game/{docId} {
+      allow read: if true;
+      allow write: if (docId == 'history' && isValidGameHistory(incoming())) ||
+                     (docId == 'state' && isValidGameState(incoming()));
+    }
 
     match /users/{userId} {
       // Users can read their own profile, Admins can read all
@@ -119,11 +128,15 @@ service cloud.firestore {
       allow delete: if false; // Transactions are immutable audit logs
     }
 
-    match /game/history {
-      // Global history is readable by everyone
-      allow read: if true;
-      // Allow write by everyone (Server manages this) - ideally secured by auth or secret
-      allow write: if isValidGameHistory(incoming());
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+    }
+
+    // ------------------------------------------------------------
+    // DEFAULT DENY
+    // ------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

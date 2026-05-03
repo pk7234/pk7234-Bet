@@ -68,11 +68,92 @@ export default function App() {
   const lastStatusRef = useRef<GameStatus | null>(null);
   const isPollingRef = useRef(false);
 
-  // Engine Logic
+  // Sync State Logic
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    // 1. First, try to get initial state via API for fast offset calculation
+    const initialSync = async () => {
+      try {
+        const res = await fetch('/api/game-state');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.serverTime) {
+            setTimeOffset(data.serverTime - Date.now());
+          }
+          setGameState(prev => ({ ...prev, ...data }));
+          setIsSynced(true);
+        }
+      } catch (e) {
+        console.warn("API sync failed, relying on Firestore");
+      }
+    };
+    initialSync();
+
+    // 3. Absolute Fallback: If no sync happens in 3s, start local
+    const fallbackTimer = setTimeout(() => {
+      if (!isSynced) {
+        console.warn("Global sync timed out. Starting local-only engine.");
+        setIsSynced(true);
+        setInitialLoading(false);
+      }
+    }, 3000);
+
+    // 2. Real-time Firestore sync for the shared state
+    const unsubscribe = onSnapshot(doc(db, 'game', 'state'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setGameState(prev => {
+          // If we receive a status change or we haven't synced yet, take the whole state
+          if (!isSynced || prev.status !== data.status) {
+            return {
+              ...prev,
+              ...data,
+              history: data.history || prev.history
+            };
+          }
+
+          // If flying, only sync if drift is large to avoid jitter
+          if (data.status === GameStatus.FLYING) {
+            const drift = Math.abs(prev.currentMultiplier - data.currentMultiplier);
+            if (drift > 0.5) { // Larger threshold for Firestore sync
+              return { ...prev, ...data };
+            }
+          }
+
+          // Otherwise just update history if it changed
+          return {
+            ...prev,
+            history: data.history || prev.history
+          };
+        });
+        setIsSynced(true);
+        setInitialLoading(false);
+        clearTimeout(fallbackTimer);
+      }
+    }, (err) => {
+      const errInfo = {
+        error: err.message || String(err),
+        operationType: 'get',
+        path: 'game/state',
+        authInfo: {
+          userId: auth.currentUser?.uid,
+          email: auth.currentUser?.email,
+          emailVerified: auth.currentUser?.emailVerified
+        }
+      };
+      console.error('Firestore Error:', JSON.stringify(errInfo));
+    });
+
+    return () => {
+      unsubscribe();
+      clearTimeout(fallbackTimer);
+    };
+  }, [isSynced]);
+
+  // Engine Animation Loop (Local prediction between syncs)
+  useEffect(() => {
+    if (!isSynced) return;
     
-    const runEngine = () => {
+    const interval = setInterval(() => {
       setGameState(prev => {
         const now = Date.now() + timeOffset;
         const elapsed = (now - prev.startTime) / 1000;
@@ -80,12 +161,13 @@ export default function App() {
         if (prev.status === GameStatus.WAITING) {
           const remaining = Math.max(0, 5 - Math.floor(elapsed));
           if (remaining <= 0) {
+            // Local fallback transition if synced but server didn't push status change
             return {
               ...prev,
               status: GameStatus.FLYING,
               startTime: now,
               currentMultiplier: 1.0,
-              crashPoint: generateCrashPoint() // Local random generation if not synced
+              crashPoint: generateCrashPoint()
             };
           }
           if (prev.timer === remaining) return prev;
@@ -104,7 +186,6 @@ export default function App() {
               timer: 3
             };
           }
-          if (Math.abs(prev.currentMultiplier - actualMult) < 0.001) return prev;
           return { ...prev, currentMultiplier: actualMult };
         }
 
@@ -124,93 +205,10 @@ export default function App() {
         }
         return prev;
       });
-    };
+    }, 33);
 
-    const poll = async () => {
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      try {
-        const res = await fetch('/api/game-state', { 
-          signal: controller.signal,
-          headers: { 'Accept': 'application/json' }
-        });
-        
-        if (res.ok) {
-          const contentType = res.headers.get("content-type");
-          if (contentType && contentType.toLowerCase().includes("application/json")) {
-            const data = await res.json();
-            if (data && data.status) {
-              if (data.serverTime) {
-                setTimeOffset(data.serverTime - Date.now());
-              }
-              setGameState(prev => {
-                const historyChanged = JSON.stringify(prev.history) !== JSON.stringify(data.history);
-                
-                if (!isSynced || prev.status !== data.status) {
-                  return {
-                    ...data,
-                    history: data.history || []
-                  };
-                }
-
-                if (data.status === GameStatus.FLYING) {
-                  const drift = Math.abs(prev.currentMultiplier - data.currentMultiplier);
-                  if (drift > 0.05) {
-                    return { ...data, history: data.history || prev.history };
-                  }
-                }
-
-                return {
-                  ...prev,
-                  history: historyChanged ? data.history : prev.history
-                };
-              });
-              setIsSynced(true);
-            }
-          } else {
-            console.warn("API returned non-JSON content. Switching to local mode.");
-            setIsSynced(true);
-          }
-        } else {
-          console.warn(`API returned ${res.status}. Switching to local mode.`);
-          setIsSynced(true);
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error("Polling error:", err);
-        }
-        if (!isSynced) {
-          setIsSynced(true);
-        }
-      } finally {
-        isPollingRef.current = false;
-        clearTimeout(timeoutId);
-        setInitialLoading(false);
-      }
-    };
-
-    poll();
-    interval = setInterval(runEngine, 33);
-    const pollInterval = setInterval(poll, 1500);
-
-    return () => {
-      clearInterval(interval);
-      clearInterval(pollInterval);
-    };
-  }, [timeOffset, isSynced]);
-
-  // Force dismiss loading after a short time as absolute fallback
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setInitialLoading(false);
-      setIsSynced(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => clearInterval(interval);
+  }, [isSynced, timeOffset]);
 
   // Live Bets Logic
   useEffect(() => {
@@ -255,6 +253,8 @@ export default function App() {
             setBalance(docSnap.data().balance);
             setIsAdmin(docSnap.data().role === 'admin');
           }
+        }, (err) => {
+          console.error("User profile sync error:", err);
         });
       }
     });

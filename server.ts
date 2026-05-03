@@ -3,7 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +21,8 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
+
+console.log("Firebase initialized for server. Project ID:", firebaseConfig.projectId);
 
 async function startServer() {
   const app = express();
@@ -51,15 +53,30 @@ async function startServer() {
     timer: 5,
   };
 
-  // Load initial history from Firestore
+  // Load initial history and state from Firestore
   try {
-    const snap = await getDoc(doc(db, "game", "history"));
-    if (snap.exists()) {
-      state.history = snap.data().values || [];
+    const historySnap = await getDoc(doc(db, "game", "history"));
+    if (historySnap.exists()) {
+      state.history = historySnap.data().values || [];
       console.log("Loaded history from Firestore:", state.history.length, "items");
     }
+
+    const stateSnap = await getDoc(doc(db, "game", "state"));
+    if (stateSnap.exists()) {
+      const data = stateSnap.data();
+      // Only restore if the data is relatively fresh (e.g., within last 30s) or we just want to resume
+      state = {
+        ...state,
+        status: data.status as GameStatus,
+        currentMultiplier: data.currentMultiplier || 1.0,
+        startTime: data.startTime || Date.now(),
+        crashPoint: data.crashPoint || 0,
+        timer: data.timer || 0,
+      };
+      console.log("Restored game state from Firestore:", state.status);
+    }
   } catch (e) {
-    console.error("Failed to load global history from Firebase:", e);
+    console.error("Failed to load global state from Firebase:", e);
   }
 
   function generateCrashPoint() {
@@ -95,8 +112,17 @@ async function startServer() {
         // Persist to Firestore
         try {
           await setDoc(doc(db, "game", "history"), { values: state.history });
+          await setDoc(doc(db, "game", "state"), { 
+            status: state.status,
+            startTime: state.startTime,
+            crashPoint: state.crashPoint,
+            currentMultiplier: state.currentMultiplier,
+            history: state.history,
+            timer: 0,
+            lastUpdated: serverTimestamp()
+          });
         } catch (e) {
-          console.error("Failed to save history to Firebase:", e);
+          console.error("Failed to save state to Firebase:", e);
         }
       }
     } else if (state.status === GameStatus.CRASHED) {
@@ -105,11 +131,41 @@ async function startServer() {
         state.status = GameStatus.WAITING;
         state.startTime = now;
         state.currentMultiplier = 1.0;
+        
+        // Sync transition start
+        try {
+          await setDoc(doc(db, "game", "state"), { 
+            status: state.status,
+            startTime: state.startTime,
+            crashPoint: 0,
+            timer: 5,
+            currentMultiplier: 1.0,
+            lastUpdated: serverTimestamp()
+          });
+        } catch (e) {
+          console.error("Failed to sync transition to Firebase:", e);
+        }
       }
     }
   }
 
   setInterval(gameLoop, 33);
+  
+  // Also sync state occasionally even if no crash happened
+  setInterval(async () => {
+    try {
+      await setDoc(doc(db, "game", "state"), { 
+        status: state.status,
+        startTime: state.startTime,
+        crashPoint: state.crashPoint,
+        currentMultiplier: state.currentMultiplier,
+        timer: state.timer,
+        lastUpdated: serverTimestamp()
+      });
+    } catch (e) {
+      // console.error("Periodic sync failed:", e.message);
+    }
+  }, 1000);
 
   app.get('/api/game-state', (req, res) => {
     res.json({
