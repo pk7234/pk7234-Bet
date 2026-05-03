@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Wallet, Camera, Link as LinkIcon, Send } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDoc } from 'firebase/firestore';
 
 interface TransactionModalProps {
