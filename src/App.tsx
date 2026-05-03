@@ -79,11 +79,11 @@ function TransactionList({ userId }: { userId: string }) {
             <div className={`text-sm font-black ${t.type === 'deposit' ? 'text-[#2ecc71]' : 'text-accent-red'}`}>
               {t.type === 'deposit' ? '+' : '-'}Rs. {t.amount}
             </div>
-            <div className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full inline-block ${
-              t.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
-              t.status === 'approved' ? 'bg-[#2ecc71]/10 text-[#2ecc71]' : 'bg-red-500/10 text-red-500'
+            <div className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full inline-block ${
+              t.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
+              t.status === 'approved' ? 'bg-[#2ecc71]/10 text-[#2ecc71] border border-[#2ecc71]/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'
             }`}>
-              {t.status}
+              {t.status === 'approved' ? 'SUCCESSFUL' : t.status}
             </div>
           </div>
         </div>
@@ -98,13 +98,13 @@ export default function App() {
     currentMultiplier: 1.0,
     startTime: Date.now(),
     crashPoint: 0,
-    history: [],
+    history: [], // Clear mock history
     timer: 0
   });
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [timeOffset, setTimeOffset] = useState(0);
-  const [balance, setBalance] = useState(1000);
+  const [balance, setBalance] = useState(0);
   const [isSynced, setIsSynced] = useState(false);
   
   // Bet 1 States
@@ -441,12 +441,21 @@ export default function App() {
 
         <div className="flex items-center gap-4">
           {!user ? (
-            <button onClick={() => setShowAuthModal(true)} className="px-4 py-1.5 bg-accent-red text-white text-xs font-black rounded uppercase tracking-widest">SIGN UP</button>
+            <button onClick={() => setShowAuthModal(true)} className="px-5 py-2 bg-accent-red hover:bg-red-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest transition-all shadow-[0_5px_15px_rgba(255,59,59,0.3)]">SIGN UP</button>
           ) : (
             <div className="flex items-center gap-3">
-              {isAdmin && <button onClick={() => setShowAdminPanel(true)} className="p-2 bg-accent-blue/10 text-accent-blue rounded-lg border border-accent-blue/20"><Shield className="w-4 h-4" /></button>}
-              <div className="px-4 py-1.5 bg-black/40 rounded-lg border border-white/10">
-                <span className="text-xs font-bold text-[#2ecc71]">{formatCurrency(balance)}</span>
+              {isAdmin && (
+                <button 
+                  onClick={() => setShowAdminPanel(true)} 
+                  className="px-4 py-2 bg-accent-blue/10 hover:bg-accent-blue/20 text-accent-blue rounded-lg border border-accent-blue/20 flex items-center gap-2 transition-all animate-pulse hover:animate-none"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Admin Panel</span>
+                </button>
+              )}
+              <div className="px-4 py-2 bg-black/40 rounded-lg border border-white/10 flex items-center gap-2">
+                <Wallet className="w-3 h-3 text-[#2ecc71]" />
+                <span className="text-xs font-black text-[#2ecc71] tracking-tighter">{formatCurrency(balance)}</span>
               </div>
               <button 
                 onClick={handleLogout}
