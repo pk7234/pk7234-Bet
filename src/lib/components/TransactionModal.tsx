@@ -15,7 +15,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
@@ -25,16 +25,38 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        return setError('Image size should be less than 2MB');
+      if (file.size > 5 * 1024 * 1024) {
+        return setError('Image size should be less than 5MB');
       }
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setScreenshotUrl(base64String);
-        setImagePreview(base64String);
+        setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadToImgBB = async (file: File): Promise<string> => {
+    const apiKey = (import.meta as any).env.VITE_IMGBB_API_KEY || 'b4d008817c080c65cbe192d0a9f8d808';
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        return data.data.url;
+      } else {
+        throw new Error(data.error?.message || 'Failed to upload image to ImgBB');
+      }
+    } catch (err) {
+      console.error('ImgBB Upload Error:', err);
+      throw new Error('Image upload failed. Please try again.');
     }
   };
 
@@ -45,7 +67,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     
     if (type === 'deposit') {
       if (!transactionId) return setError('Please enter transaction ID');
-      if (!screenshotUrl) return setError('Please upload payment screenshot');
+      if (!imageFile) return setError('Please upload payment screenshot');
     } else {
       if (!accountNumber) return setError('Please enter account number');
       if (!accountHolder) return setError('Please enter account holder name');
@@ -55,6 +77,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     setLoading(true);
 
     try {
+      let finalScreenshotUrl = '';
+
+      if (type === 'deposit' && imageFile) {
+        setLoading(true);
+        // Step 1: Upload to ImgBB
+        finalScreenshotUrl = await uploadToImgBB(imageFile);
+      }
+
       if (type === 'withdrawal') {
         const userRef = doc(db, 'users', userId);
         const userSnap = await getDoc(userRef);
@@ -73,7 +103,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         amount: parseFloat(amount),
         method,
         transactionId: type === 'deposit' ? transactionId : null,
-        screenshotUrl: type === 'deposit' ? screenshotUrl : null,
+        screenshotUrl: type === 'deposit' ? finalScreenshotUrl : null,
         accountNumber: type === 'withdrawal' ? accountNumber : null,
         accountHolder: type === 'withdrawal' ? accountHolder : null,
         status: 'pending',
@@ -86,7 +116,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
       setAmount('');
       setMethod('');
       setTransactionId('');
-      setScreenshotUrl('');
+      setImageFile(null);
       setImagePreview(null);
       setAccountNumber('');
       setAccountHolder('');
@@ -209,7 +239,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                             accept="image/*"
                             onChange={handleImageChange}
                             className="absolute inset-0 opacity-0 cursor-pointer"
-                            required={!screenshotUrl}
+                            required={!imageFile}
                           />
                         </div>
                       ) : (
@@ -224,7 +254,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                            <button 
                              type="button"
                              onClick={() => {
-                               setScreenshotUrl('');
+                               setImageFile(null);
                                setImagePreview(null);
                              }}
                              className="p-2 hover:bg-accent-red/20 text-accent-red rounded-lg transition-colors"
