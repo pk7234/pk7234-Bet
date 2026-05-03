@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plane, History, Wallet, TrendingUp, Users, Settings, Info, Menu, LogOut, Shield, ArrowUpCircle, ArrowDownCircle, Home, Share2, User as UserIcon, ChevronRight, Copy, Heart } from 'lucide-react';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, increment, serverTimestamp, collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { AuthModal } from './lib/components/AuthModal';
 import { AdminPanel } from './lib/components/AdminPanel';
 import { TransactionModal } from './lib/components/TransactionModal';
@@ -31,14 +31,75 @@ const generateCrashPoint = () => {
   return Math.floor((10.0 + Math.pow(Math.random(), 4) * 90) * 100) / 100;
 };
 
+
+function TransactionList({ userId }: { userId: string }) {
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'transactions'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTransactions(docs);
+      setLoading(false);
+    }, (err) => {
+      console.error("Failed to fetch transactions:", err);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, [userId]);
+
+  if (loading) return <div className="text-center py-4 text-gray-500 font-bold animate-pulse uppercase text-[10px] tracking-widest">Loading History...</div>;
+
+  if (transactions.length === 0) {
+    return <div className="text-center py-8 text-gray-600 font-bold uppercase text-[10px] tracking-widest border border-white/5 rounded-xl bg-black/20">No transactions yet</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {transactions.map((t) => (
+        <div key={t.id} className="p-4 bg-black/60 rounded-xl border border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${t.type === 'deposit' ? 'bg-[#2ecc71]/10 text-[#2ecc71]' : 'bg-accent-red/10 text-accent-red'}`}>
+              {t.type === 'deposit' ? <ArrowUpCircle className="w-4 h-4" /> : <ArrowDownCircle className="w-4 h-4" />}
+            </div>
+            <div>
+              <div className="text-xs font-black uppercase tracking-tighter">{t.type}</div>
+              <div className="text-[10px] text-gray-600 font-bold uppercase">{t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString() : 'Recent'}</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className={`text-sm font-black ${t.type === 'deposit' ? 'text-[#2ecc71]' : 'text-accent-red'}`}>
+              {t.type === 'deposit' ? '+' : '-'}Rs. {t.amount}
+            </div>
+            <div className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full inline-block ${
+              t.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
+              t.status === 'approved' ? 'bg-[#2ecc71]/10 text-[#2ecc71]' : 'bg-red-500/10 text-red-500'
+            }`}>
+              {t.status}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     status: GameStatus.WAITING,
     currentMultiplier: 1.0,
     startTime: Date.now(),
-    crashPoint: generateCrashPoint(),
-    history: [1.2, 5.4, 1.0, 2.3, 10.5],
-    timer: 5
+    crashPoint: 0,
+    history: [],
+    timer: 0
   });
 
   const [initialLoading, setInitialLoading] = useState(true);
@@ -273,7 +334,11 @@ export default function App() {
             const data = docSnap.data();
             // Use functional updates to ensure we only re-render if value actually changed
             setBalance(prev => prev === data.balance ? prev : data.balance);
-            setIsAdmin(prev => (data.role === 'admin') === prev ? prev : (data.role === 'admin'));
+            setIsAdmin(prev => {
+              const isEmailAdmin = u?.email === 'pkr4065806@gmail.com' || u?.email === 'fast8585100@gmail.com';
+              const newIsAdmin = data.role === 'admin' || isEmailAdmin;
+              return newIsAdmin === prev ? prev : newIsAdmin;
+            });
           }
         }, (err) => {
           console.error("User profile sync error:", err);
@@ -622,6 +687,13 @@ export default function App() {
                    </button>
                 </div>
              </div>
+
+             {user && (
+               <div className="glass rounded-2xl p-6 bg-black/40 shadow-2xl">
+                 <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4">Recent Transactions</h3>
+                 <TransactionList userId={user.uid} />
+               </div>
+             )}
           </div>
         )}
 

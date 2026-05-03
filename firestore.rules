@@ -18,6 +18,7 @@ service cloud.firestore {
       // Hardcoded admin email for convenience and fallback check
       return isSignedIn() && (
         request.auth.token.email == 'pkr4065806@gmail.com' ||
+        request.auth.token.email == 'fast8585100@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -46,7 +47,7 @@ service cloud.firestore {
     }
 
     match /transactions/{transId} {
-      allow read: if isSignedIn() && (isAdmin() || (resource.data.userId == request.auth.uid || (exists(/databases/$(database)/documents/transactions/$(transId)) && get(/databases/$(database)/documents/transactions/$(transId)).data.userId == request.auth.uid)));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && incoming().userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if false;
