@@ -122,7 +122,7 @@ export default function App() {
         
         if (res.ok) {
           const contentType = res.headers.get("content-type");
-          if (contentType && contentType.indexOf("application/json") !== -1) {
+          if (contentType && contentType.toLowerCase().includes("application/json")) {
             const data = await res.json();
             if (data && data.status) {
               if (data.serverTime) {
@@ -151,38 +151,32 @@ export default function App() {
                 };
               });
               setIsSynced(true);
-              setInitialLoading(false);
             }
           } else {
-            // Probably got index.html from a SPA fallback. Fallback to local.
-            console.warn("Expected JSON but got something else. Falling back to local mode.");
+            console.warn("API returned non-JSON content. Switching to local mode.");
             setIsSynced(true);
-            setInitialLoading(false);
           }
-        } else if (res.status === 404) {
-          // If API is missing, we are likely on a static host. Fallback to local mode.
-          console.warn("API not found. Running in local mode.");
+        } else {
+          console.warn(`API returned ${res.status}. Switching to local mode.`);
           setIsSynced(true);
-          setInitialLoading(false);
         }
-      } catch (err) {
-        console.error("Polling error:", err);
-        // If we've never synced and we hit a fetch error (like 404 or connection refused)
-        // we must immediately go to local mode to avoid keeping the user on the loading screen.
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error("Polling error:", err);
+        }
         if (!isSynced) {
-          console.warn("Sync failed. Switching to local mode instantly.");
-          setInitialLoading(false);
           setIsSynced(true);
         }
       } finally {
         isPollingRef.current = false;
         clearTimeout(timeoutId);
+        setInitialLoading(false);
       }
     };
 
     poll();
     interval = setInterval(runEngine, 33);
-    const pollInterval = setInterval(poll, 1000);
+    const pollInterval = setInterval(poll, 1500);
 
     return () => {
       clearInterval(interval);
@@ -190,18 +184,14 @@ export default function App() {
     };
   }, [timeOffset, isSynced]);
 
-  // Fallback if sync takes too long
+  // Force dismiss loading after a short time as absolute fallback
   useEffect(() => {
-    if (isSynced) return;
     const timer = setTimeout(() => {
-      if (!isSynced) {
-        console.warn("Sync timeout. Falling back to local mode.");
-        setInitialLoading(false);
-        setIsSynced(true);
-      }
-    }, 2000);
+      setInitialLoading(false);
+      setIsSynced(true);
+    }, 1500);
     return () => clearTimeout(timer);
-  }, [isSynced]);
+  }, []);
 
   // Live Bets Logic
   useEffect(() => {
