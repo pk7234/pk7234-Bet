@@ -223,40 +223,24 @@ export default function App() {
     const interval = setInterval(() => {
       const now = Date.now() + timeOffset;
 
-      // 1. Update Game State
-      let nextStatus: GameStatus | null = null;
+      // 1. Update Game State (LOCAL INTERPOLATION ONLY)
       setGameState(prev => {
         const elapsed = (now - prev.startTime) / 1000;
 
         if (prev.status === GameStatus.WAITING) {
           const remaining = Math.max(0, 5 - Math.floor(elapsed));
-          if (remaining <= 0) {
-            nextStatus = GameStatus.FLYING;
-            return {
-              ...prev,
-              status: GameStatus.FLYING,
-              startTime: now,
-              currentMultiplier: 1.0,
-              crashPoint: generateCrashPoint()
-            };
-          }
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
 
         if (prev.status === GameStatus.FLYING) {
           const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
-          if (actualMult >= prev.crashPoint) {
-            nextStatus = GameStatus.CRASHED;
-            return {
-              ...prev,
-              status: GameStatus.CRASHED,
-              currentMultiplier: prev.crashPoint,
-              history: [prev.crashPoint, ...prev.history].slice(0, 10),
-              startTime: now,
-              timer: 3
-            };
+          
+          // Cap at crashPoint locally to prevent overshooting before server update arrives
+          if (prev.crashPoint > 0 && actualMult >= prev.crashPoint) {
+            return { ...prev, currentMultiplier: prev.crashPoint };
           }
+          
           // Avoid tiny updates that don't change the UI display significantly
           if (Math.abs(prev.currentMultiplier - actualMult) < 0.001) return prev;
           return { ...prev, currentMultiplier: actualMult };
@@ -264,16 +248,6 @@ export default function App() {
 
         if (prev.status === GameStatus.CRASHED) {
           const remaining = Math.max(0, 3 - Math.floor(elapsed));
-          if (remaining <= 0) {
-            nextStatus = GameStatus.WAITING;
-            return {
-              ...prev,
-              status: GameStatus.WAITING,
-              startTime: now,
-              timer: 5,
-              currentMultiplier: 1.0
-            };
-          }
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
@@ -281,10 +255,8 @@ export default function App() {
       });
 
       // 2. Update Bots / Live Bets based on the state update above
-      // We do this in a separate setLiveBets call but triggered by the same interval
       setLiveBets(prev => {
-        // Use the Ref here to get the latest multiplier without triggering effect re-run
-        const currentStatus = nextStatus || lastStatusRef.current;
+        const currentStatus = gameStateRef.current.status;
         const currentMult = gameStateRef.current.currentMultiplier; 
         
         if (currentStatus === GameStatus.WAITING && lastStatusRef.current !== GameStatus.WAITING) {
@@ -301,7 +273,6 @@ export default function App() {
 
         if (lastStatusRef.current === GameStatus.FLYING) {
           let hasChange = false;
-          const currentMult = gameStateRef.current.currentMultiplier;
           const updated = prev.map(bet => {
             if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
               hasChange = true;
@@ -309,18 +280,23 @@ export default function App() {
             }
             return bet;
           });
-          if (nextStatus) lastStatusRef.current = nextStatus;
+          
+          if (currentStatus !== GameStatus.FLYING) {
+             lastStatusRef.current = currentStatus;
+          }
+          
           return hasChange ? updated : prev;
         }
 
-        if (nextStatus) lastStatusRef.current = nextStatus;
+        lastStatusRef.current = currentStatus;
         return prev;
       });
 
     }, 33);
 
     return () => clearInterval(interval);
-  }, [isSynced, timeOffset]); // Only runs when sync status or timeOffset changes
+  }, [isSynced, timeOffset]);
+ // Only runs when sync status or timeOffset changes
 
 
   // Auth Listener
