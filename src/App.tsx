@@ -115,50 +115,64 @@ export default function App() {
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       try {
-        const res = await fetch('/api/game-state', { signal: controller.signal });
+        const res = await fetch('/api/game-state', { 
+          signal: controller.signal,
+          headers: { 'Accept': 'application/json' }
+        });
+        
         if (res.ok) {
-          const data = await res.json();
-          if (data && data.status) {
-            if (data.serverTime) {
-              setTimeOffset(data.serverTime - Date.now());
-            }
-            setGameState(prev => {
-              const historyChanged = JSON.stringify(prev.history) !== JSON.stringify(data.history);
-              
-              if (!isSynced || prev.status !== data.status) {
-                return {
-                  ...data,
-                  history: data.history || []
-                };
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await res.json();
+            if (data && data.status) {
+              if (data.serverTime) {
+                setTimeOffset(data.serverTime - Date.now());
               }
-
-              if (data.status === GameStatus.FLYING) {
-                const drift = Math.abs(prev.currentMultiplier - data.currentMultiplier);
-                if (drift > 0.05) {
-                  return { ...data, history: data.history || prev.history };
+              setGameState(prev => {
+                const historyChanged = JSON.stringify(prev.history) !== JSON.stringify(data.history);
+                
+                if (!isSynced || prev.status !== data.status) {
+                  return {
+                    ...data,
+                    history: data.history || []
+                  };
                 }
-              }
 
-              return {
-                ...prev,
-                history: historyChanged ? data.history : prev.history
-              };
-            });
+                if (data.status === GameStatus.FLYING) {
+                  const drift = Math.abs(prev.currentMultiplier - data.currentMultiplier);
+                  if (drift > 0.05) {
+                    return { ...data, history: data.history || prev.history };
+                  }
+                }
+
+                return {
+                  ...prev,
+                  history: historyChanged ? data.history : prev.history
+                };
+              });
+              setIsSynced(true);
+              setInitialLoading(false);
+            }
+          } else {
+            // Probably got index.html from a SPA fallback. Fallback to local.
+            console.warn("Expected JSON but got something else. Falling back to local mode.");
             setIsSynced(true);
             setInitialLoading(false);
           }
+        } else if (res.status === 404) {
+          // If API is missing, we are likely on a static host. Fallback to local mode.
+          console.warn("API not found. Running in local mode.");
+          setIsSynced(true);
+          setInitialLoading(false);
         }
       } catch (err) {
         console.error("Polling error:", err);
-        // If we've never synced and we hit an error, we'll try again in the next interval
-        // But if it's the very first attempt, we mark synced after a longer timeout to avoid being stuck
-        if (!isSynced && !isPollingRef.current) {
-           setTimeout(() => {
-             if (!isSynced) {
-               setInitialLoading(false);
-               setIsSynced(true);
-             }
-           }, 5000); // 5 second grace period for first sync
+        // If we've never synced and we hit a fetch error (like 404 or connection refused)
+        // we must immediately go to local mode to avoid keeping the user on the loading screen.
+        if (!isSynced) {
+          console.warn("Sync failed. Switching to local mode instantly.");
+          setInitialLoading(false);
+          setIsSynced(true);
         }
       } finally {
         isPollingRef.current = false;
@@ -175,6 +189,19 @@ export default function App() {
       clearInterval(pollInterval);
     };
   }, [timeOffset, isSynced]);
+
+  // Fallback if sync takes too long
+  useEffect(() => {
+    if (isSynced) return;
+    const timer = setTimeout(() => {
+      if (!isSynced) {
+        console.warn("Sync timeout. Falling back to local mode.");
+        setInitialLoading(false);
+        setIsSynced(true);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [isSynced]);
 
   // Live Bets Logic
   useEffect(() => {
