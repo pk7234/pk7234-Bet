@@ -236,9 +236,16 @@ export default function App() {
         if (prev.status === GameStatus.FLYING) {
           const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
           
-          // Cap at crashPoint locally to prevent overshooting before server update arrives
+          // Local Transition to CRASHED to avoid the "pause" tell
           if (prev.crashPoint > 0 && actualMult >= prev.crashPoint) {
-            return { ...prev, currentMultiplier: prev.crashPoint };
+            return { 
+              ...prev, 
+              status: GameStatus.CRASHED,
+              currentMultiplier: prev.crashPoint,
+              history: [prev.crashPoint, ...prev.history].slice(0, 10),
+              startTime: now,
+              timer: 3
+            };
           }
           
           // Avoid tiny updates that don't change the UI display significantly
