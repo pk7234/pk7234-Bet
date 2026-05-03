@@ -66,7 +66,13 @@ export default function App() {
   // Dynamic Live Bets State
   const [liveBets, setLiveBets] = useState<any[]>([]);
   const lastStatusRef = useRef<GameStatus | null>(null);
+  const gameStateRef = useRef<GameState>(gameState);
   const isPollingRef = useRef(false);
+
+  // Keep Ref in sync with state for use in interval
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   // Sync State Logic
   useEffect(() => {
@@ -140,19 +146,22 @@ export default function App() {
     };
   }, []);
 
-  // Engine Animation Loop (Local prediction between syncs)
+  // Engine Animation & Bots Logic Consolidated
   useEffect(() => {
     if (!isSynced) return;
     
     const interval = setInterval(() => {
+      const now = Date.now() + timeOffset;
+
+      // 1. Update Game State
+      let nextStatus: GameStatus | null = null;
       setGameState(prev => {
-        const now = Date.now() + timeOffset;
         const elapsed = (now - prev.startTime) / 1000;
 
         if (prev.status === GameStatus.WAITING) {
           const remaining = Math.max(0, 5 - Math.floor(elapsed));
           if (remaining <= 0) {
-            // Local fallback transition if synced but server didn't push status change
+            nextStatus = GameStatus.FLYING;
             return {
               ...prev,
               status: GameStatus.FLYING,
@@ -168,6 +177,7 @@ export default function App() {
         if (prev.status === GameStatus.FLYING) {
           const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
           if (actualMult >= prev.crashPoint) {
+            nextStatus = GameStatus.CRASHED;
             return {
               ...prev,
               status: GameStatus.CRASHED,
@@ -177,12 +187,15 @@ export default function App() {
               timer: 3
             };
           }
+          // Avoid tiny updates that don't change the UI display significantly
+          if (Math.abs(prev.currentMultiplier - actualMult) < 0.001) return prev;
           return { ...prev, currentMultiplier: actualMult };
         }
 
         if (prev.status === GameStatus.CRASHED) {
           const remaining = Math.max(0, 3 - Math.floor(elapsed));
           if (remaining <= 0) {
+            nextStatus = GameStatus.WAITING;
             return {
               ...prev,
               status: GameStatus.WAITING,
@@ -196,42 +209,49 @@ export default function App() {
         }
         return prev;
       });
+
+      // 2. Update Bots / Live Bets based on the state update above
+      // We do this in a separate setLiveBets call but triggered by the same interval
+      setLiveBets(prev => {
+        // Use the Ref here to get the latest multiplier without triggering effect re-run
+        const currentStatus = nextStatus || lastStatusRef.current;
+        const currentMult = gameStateRef.current.currentMultiplier; 
+        
+        if (currentStatus === GameStatus.WAITING && lastStatusRef.current !== GameStatus.WAITING) {
+          lastStatusRef.current = GameStatus.WAITING;
+          return Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
+            user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
+            user_id: `bot_${i}_${Date.now()}`,
+            amount: 16 + Math.floor(Math.random() * 500),
+            cashOutAt: 1.1 + Math.pow(Math.random(), 2) * 5,
+            cashedOut: false,
+            win: 0
+          }));
+        }
+
+        if (lastStatusRef.current === GameStatus.FLYING) {
+          let hasChange = false;
+          const currentMult = gameStateRef.current.currentMultiplier;
+          const updated = prev.map(bet => {
+            if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
+              hasChange = true;
+              return { ...bet, cashedOut: true, win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100 };
+            }
+            return bet;
+          });
+          if (nextStatus) lastStatusRef.current = nextStatus;
+          return hasChange ? updated : prev;
+        }
+
+        if (nextStatus) lastStatusRef.current = nextStatus;
+        return prev;
+      });
+
     }, 33);
 
     return () => clearInterval(interval);
-  }, [isSynced, timeOffset]);
+  }, [isSynced, timeOffset]); // Only runs when sync status or timeOffset changes
 
-  // Live Bets Logic
-  useEffect(() => {
-    if (gameState.status !== GameStatus.FLYING) {
-      if (gameState.status === GameStatus.WAITING && lastStatusRef.current !== GameStatus.WAITING) {
-        setLiveBets(Array.from({ length: 15 + Math.floor(Math.random() * 10) }, (_, i) => ({
-          user: `${['m', 'a', 'x', 'p', 'z'][Math.floor(Math.random() * 5)]}***${100 + Math.floor(Math.random() * 900)}`,
-          user_id: `bot_${i}_${Date.now()}`,
-          amount: 16 + Math.floor(Math.random() * 500),
-          cashOutAt: 1.1 + Math.pow(Math.random(), 2) * 5,
-          cashedOut: false,
-          win: 0
-        })));
-      }
-      lastStatusRef.current = gameState.status;
-      return;
-    }
-    
-    setLiveBets(prev => {
-      let changed = false;
-      const currentMult = gameState.currentMultiplier;
-      const updatedBets = prev.map(bet => {
-        if (!bet.cashedOut && currentMult >= bet.cashOutAt) {
-          changed = true;
-          return { ...bet, cashedOut: true, win: Math.floor(bet.amount * bet.cashOutAt * 100) / 100 };
-        }
-        return bet;
-      });
-      return changed ? updatedBets : prev;
-    });
-    lastStatusRef.current = gameState.status;
-  }, [gameState.status, gameState.currentMultiplier]);
 
   // Auth Listener
   useEffect(() => {
@@ -252,8 +272,8 @@ export default function App() {
           if (docSnap.exists()) {
             const data = docSnap.data();
             // Use functional updates to ensure we only re-render if value actually changed
-            setBalance(data.balance);
-            setIsAdmin(data.role === 'admin');
+            setBalance(prev => prev === data.balance ? prev : data.balance);
+            setIsAdmin(prev => (data.role === 'admin') === prev ? prev : (data.role === 'admin'));
           }
         }, (err) => {
           console.error("User profile sync error:", err);
