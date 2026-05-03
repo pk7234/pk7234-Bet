@@ -104,7 +104,7 @@ export default function App() {
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [timeOffset, setTimeOffset] = useState(0);
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(1000);
   const [isSynced, setIsSynced] = useState(false);
   
   // Bet 1 States
@@ -115,6 +115,7 @@ export default function App() {
   const [betAmount2, setBetAmount2] = useState(16);
   const [bet2, setBet2] = useState<{ amount: number; active: boolean } | null>(null);
   
+  const [notification, setNotification] = useState<string | null>(null);
   const [lastWin, setLastWin] = useState<number | null>(null);
   const [queuedBet1, setQueuedBet1] = useState<number | null>(null);
   const [queuedBet2, setQueuedBet2] = useState<number | null>(null);
@@ -123,6 +124,11 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+
+  const triggerNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3000);
+  };
   const [showTransModal, setShowTransModal] = useState<{ open: boolean, type: 'deposit' | 'withdrawal' }>({ open: false, type: 'deposit' });
   const [activeTab, setActiveTab] = useState<'home' | 'history' | 'wallet' | 'invite' | 'profile'>('home');
   const [showFullHistory, setShowFullHistory] = useState(false);
@@ -363,6 +369,11 @@ export default function App() {
   // Automatically process queued bets when game starts waiting
   useEffect(() => {
     if (gameState.status === GameStatus.WAITING) {
+      // Clear active bets from previous round (they lost if still active)
+      setBet1(null);
+      setBet2(null);
+
+      // Process queued bets
       if (queuedBet1 !== null) {
         setBet1({ amount: queuedBet1, active: true });
         setQueuedBet1(null);
@@ -371,16 +382,28 @@ export default function App() {
         setBet2({ amount: queuedBet2, active: true });
         setQueuedBet2(null);
       }
+    } else if (gameState.status === GameStatus.CRASHED) {
+      setBet1(null);
+      setBet2(null);
     }
   }, [gameState.status]);
 
   const handlePlaceBet = async (num: 1 | 2) => {
     const amount = num === 1 ? betAmount1 : betAmount2;
     
+    if (!user) {
+      triggerNotification("PLEASE LOGIN FIRST TO PLACE BET");
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (balance < amount) {
+      triggerNotification("INSUFFICIENT BALANCE. PLEASE RECHARGE");
+      return;
+    }
+
     // If not waiting, queue it for next round
     if (gameState.status !== GameStatus.WAITING) {
-      if (balance < amount) return alert('Insufficient balance');
-      
       setBalance(prev => prev - amount);
       if (user) {
         const userRef = doc(db, 'users', user.uid);
@@ -392,16 +415,37 @@ export default function App() {
       return;
     }
 
-    if (balance < amount) return alert('Insufficient balance');
-    
     setBalance(prev => prev - amount);
+    if (num === 1) setBet1({ amount, active: true });
+    else setBet2({ amount, active: true });
+
     if (user) {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { balance: increment(-amount) });
     }
+  };
 
-    if (num === 1) setBet1({ amount, active: true });
-    else setBet2({ amount, active: true });
+  const handleCancelBet = async (num: 1 | 2) => {
+    const qAmount = num === 1 ? queuedBet1 : queuedBet2;
+    const bet = num === 1 ? bet1 : bet2;
+    
+    if (qAmount !== null) {
+      setBalance(prev => prev + qAmount);
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { balance: increment(qAmount) });
+      }
+      if (num === 1) setQueuedBet1(null);
+      else setQueuedBet2(null);
+    } else if (bet && gameState.status === GameStatus.WAITING) {
+      setBalance(prev => prev + bet.amount);
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { balance: increment(bet.amount) });
+      }
+      if (num === 1) setBet1(null);
+      else setBet2(null);
+    }
   };
 
   const handleCashOut = async (num: 1 | 2) => {
@@ -687,11 +731,23 @@ export default function App() {
                         </button>
                       ) : (num === 1 ? queuedBet1 : queuedBet2) ? (
                         <button 
-                          disabled
-                          className="w-full h-full bg-accent-blue/10 border-2 border-accent-blue/30 text-accent-blue rounded-xl font-black text-xl flex flex-col items-center justify-center shadow-[0_0_20px_rgba(52,152,219,0.3)] transition-all animate-pulse"
+                          onClick={() => handleCancelBet(num as 1 | 2)}
+                          className="w-full h-full bg-accent-blue/10 border-2 border-accent-blue/30 text-accent-blue rounded-xl font-black text-xl flex flex-col items-center justify-center shadow-[0_0_20px_rgba(52,152,219,0.3)] transition-all active:scale-95 group hover:bg-accent-red/20 hover:border-accent-red/30 hover:text-accent-red"
                         >
-                          <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1">QUEUED</span>
-                          <span className="text-[8px] opacity-60 font-bold uppercase">Ready for Next Round</span>
+                          <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 group-hover:hidden">QUEUED</span>
+                          <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 hidden group-hover:block text-accent-red">CANCEL</span>
+                          <span className="text-[8px] opacity-60 font-bold uppercase group-hover:hidden">Ready for Next Round</span>
+                          <span className="text-[8px] opacity-60 font-bold uppercase hidden group-hover:block">Withdraw Bet</span>
+                        </button>
+                      ) : (num === 1 ? bet1 : bet2) && gameState.status === GameStatus.WAITING ? (
+                        <button 
+                          onClick={() => handleCancelBet(num as 1 | 2)}
+                          className="w-full h-full bg-accent-blue/10 border-2 border-accent-blue/30 text-accent-blue rounded-xl font-black text-xl flex flex-col items-center justify-center shadow-[0_0_20px_rgba(52,152,219,0.3)] transition-all active:scale-95 group hover:bg-accent-red/20 hover:border-accent-red/30 hover:text-accent-red"
+                        >
+                          <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 group-hover:hidden">WAITING...</span>
+                          <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 hidden group-hover:block text-accent-red">CANCEL</span>
+                          <span className="text-[8px] opacity-60 font-bold uppercase group-hover:hidden">Round starts soon</span>
+                          <span className="text-[8px] opacity-60 font-bold uppercase hidden group-hover:block">Withdraw Bet</span>
                         </button>
                       ) : (
                         <button 
@@ -699,7 +755,7 @@ export default function App() {
                           disabled={gameState.status !== GameStatus.FLYING}
                           className="w-full h-full bg-[#f39c12] hover:bg-[#e67e22] text-white rounded-xl font-black text-2xl flex flex-col items-center justify-center shadow-lg transition-all active:scale-95 disabled:opacity-50"
                         >
-                          <span className="text-xs font-normal opacity-70 uppercase tracking-widest">CASH OUT</span>
+                          <span className="text-xs font-normal opacity-70 uppercase tracking-widest text-[#000000]/60">CASH OUT</span>
                           {gameState.status === GameStatus.FLYING && formatCurrency(((num === 1 ? bet1 : bet2)?.amount || 0) * gameState.currentMultiplier)}
                         </button>
                       )}
@@ -828,6 +884,22 @@ export default function App() {
       </nav>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -100 }}
+            animate={{ opacity: 1, y: 30 }}
+            exit={{ opacity: 0, y: -100 }}
+            className="fixed top-20 left-0 right-0 z-[500] flex justify-center px-4 pointer-events-none"
+          >
+            <div className="bg-accent-red px-6 py-3 rounded-full shadow-[0_10px_40px_rgba(255,59,59,0.5)] border border-white/20 flex items-center gap-3">
+              <Shield className="w-5 h-5 text-white" />
+              <span className="text-[10px] md:text-xs font-black text-white uppercase tracking-widest">{notification}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AdminPanel isOpen={showAdminPanel} onClose={() => setShowAdminPanel(false)} />
       {user && <TransactionModal isOpen={showTransModal.open} onClose={() => setShowTransModal({ ...showTransModal, open: false })} type={showTransModal.type} userId={user.uid} />}
     </div>
