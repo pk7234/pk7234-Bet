@@ -308,8 +308,16 @@ export default function App() {
   }
 
   const planeCoords = (mult: number) => {
-    const p = Math.min(100, Math.max(0, (mult - 1) * 32));
-    return { x: 10 + (p * 0.8), y: 88 - (Math.pow(p / 10, 1.8) * 15) };
+    // Determine progress based on multiplier
+    // It should reach the "end" of its initial path around 5x-10x
+    const progress = Math.min(100, Math.max(0, (mult - 1) * 15));
+    
+    // Smoothly curve towards the top-right
+    // Clamp X at 85% and Y at 15% to keep the plane visible
+    const x = Math.min(85, 10 + (progress * 0.8));
+    const y = Math.max(15, 88 - (Math.pow(progress / 10, 1.3) * 12));
+    
+    return { x, y };
   };
   const coords = planeCoords(gameState.currentMultiplier);
 
@@ -347,7 +355,63 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="relative aspect-video bg-[#0d0d10] rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
+              <div className="relative aspect-video bg-[#0a0a0c] rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
+                {/* Dynamic Background Elements */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* Scrolling Grid */}
+                  <div 
+                    className="absolute inset-0 opacity-10"
+                    style={{
+                      backgroundImage: `linear-gradient(to right, #3498db 1px, transparent 1px), linear-gradient(to bottom, #3498db 1px, transparent 1px)`,
+                      backgroundSize: '40px 40px',
+                      transform: gameState.status === GameStatus.FLYING 
+                        ? `translate(-${(gameState.currentMultiplier * 50) % 40}px, ${(gameState.currentMultiplier * 50) % 40}px)` 
+                        : 'none',
+                      transition: gameState.status === GameStatus.FLYING ? 'none' : 'transform 0.5s ease-out'
+                    }}
+                  />
+                  
+                  {/* Speed lines or stars */}
+                  <AnimatePresence>
+                    {gameState.status === GameStatus.FLYING && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 overflow-hidden"
+                      >
+                        {[...Array(15)].map((_, i) => (
+                          <motion.div
+                            key={i}
+                            className="absolute h-[1px] bg-white opacity-20"
+                            style={{
+                              width: Math.random() * 100 + 50,
+                              left: Math.random() * 120 - 10 + '%',
+                              top: Math.random() * 100 + '%',
+                              transform: 'rotate(-45deg)',
+                            }}
+                            animate={{
+                              x: [-200, 200],
+                              y: [200, -200],
+                            }}
+                            transition={{
+                              duration: 1.5 / (gameState.currentMultiplier * 0.5 + 1),
+                              repeat: Infinity,
+                              ease: "linear",
+                              delay: Math.random() * 1,
+                            }}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Red Glow when flying */}
+                  {gameState.status === GameStatus.FLYING && (
+                    <div className="absolute inset-0 bg-gradient-to-tr from-accent-red/0 via-transparent to-accent-red/5" />
+                  )}
+                </div>
+
                 <AnimatePresence mode="wait">
                   {gameState.status === GameStatus.WAITING && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
@@ -356,8 +420,13 @@ export default function App() {
                     </motion.div>
                   )}
                   {gameState.status === GameStatus.FLYING && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center z-10">
-                      <div className="text-8xl font-black text-white italic drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]">{gameState.currentMultiplier.toFixed(2)}x</div>
+                    <motion.div 
+                      key="multiplier"
+                      initial={{ opacity: 0, scale: 0.8 }} 
+                      animate={{ opacity: 1, scale: 1 }} 
+                      className="text-center z-10"
+                    >
+                      <div className="text-7xl sm:text-8xl font-black text-white italic drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]">{gameState.currentMultiplier.toFixed(2)}x</div>
                     </motion.div>
                   )}
                   {gameState.status === GameStatus.CRASHED && (
@@ -368,13 +437,48 @@ export default function App() {
                   )}
                 </AnimatePresence>
 
-                <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute inset-0 pointer-events-none z-0">
+                  <svg className="w-full h-full">
+                    {gameState.status === GameStatus.FLYING && (
+                      <motion.path
+                        d={`M 10 90 Q ${coords.x / 2} 90 ${coords.x} ${coords.y}`}
+                        fill="none"
+                        stroke="rgba(255, 59, 59, 0.4)"
+                        strokeWidth="3"
+                        strokeDasharray="8 4"
+                      />
+                    )}
+                  </svg>
+                </div>
+
+                <div className="absolute inset-0 pointer-events-none z-20">
                   {(gameState.status === GameStatus.FLYING || gameState.status === GameStatus.CRASHED) && (
                     <motion.div 
-                      animate={gameState.status === GameStatus.FLYING ? { left: `${coords.x}%`, top: `${coords.y}%` } : { opacity: 0 }}
+                      animate={gameState.status === GameStatus.FLYING 
+                        ? { 
+                            left: `${coords.x}%`, 
+                            top: `${coords.y}%`,
+                            rotate: 45 + (Math.sin(Date.now() / 200) * 5) // Pointing top-right
+                          } 
+                        : { 
+                            scale: 0, 
+                            opacity: 0,
+                            rotate: 0
+                          }
+                      }
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 100, 
+                        damping: 20,
+                        rotate: { 
+                          repeat: Infinity, 
+                          duration: 0.4, 
+                          ease: "linear" 
+                        }
+                      }}
                       className="absolute -translate-x-1/2 -translate-y-1/2"
                     >
-                      <Plane className="w-16 h-16 text-accent-red fill-current drop-shadow-[0_0_20px_rgba(255,59,59,0.8)]" />
+                      <Plane className="w-12 h-12 sm:w-16 sm:h-16 text-accent-red fill-current drop-shadow-[0_0_20px_rgba(255,59,59,0.9)]" />
                     </motion.div>
                   )}
                 </div>
