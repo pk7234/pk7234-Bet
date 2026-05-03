@@ -321,6 +321,17 @@ export default function App() {
     setTimeout(() => setLastWin(null), 3000);
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setBalance(1000); // Reset for guest
+      setIsAdmin(false);
+      setUser(null);
+    } catch (e) {
+      console.error("Logout failed:", e);
+    }
+  };
+
   const formatCurrency = (val: number) => `Rs. ${val.toFixed(2)}`;
 
   if (initialLoading) {
@@ -367,6 +378,13 @@ export default function App() {
               <div className="px-4 py-1.5 bg-black/40 rounded-lg border border-white/10">
                 <span className="text-xs font-bold text-[#2ecc71]">{formatCurrency(balance)}</span>
               </div>
+              <button 
+                onClick={handleLogout}
+                className="p-2 bg-white/5 text-gray-400 hover:text-accent-red rounded-lg border border-white/10 transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>
@@ -604,6 +622,47 @@ export default function App() {
                    </button>
                 </div>
              </div>
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div className="max-w-xl mx-auto p-4 flex flex-col gap-4">
+            <div className="glass rounded-2xl p-8 bg-black/40 shadow-2xl">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-14 h-14 bg-accent-red/20 rounded-2xl flex items-center justify-center text-accent-red shadow-lg">
+                  <UserIcon className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black italic tracking-tighter uppercase leading-tight">My Profile</h2>
+                  <p className="text-xs text-gray-500 font-bold tracking-widest uppercase">{user?.email || 'Guest User'}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="p-4 bg-black/60 rounded-xl border border-white/5">
+                  <div className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1">Current Balance</div>
+                  <div className="text-2xl font-black text-[#2ecc71]">{formatCurrency(balance)}</div>
+                </div>
+
+                {user ? (
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-accent-red/10 text-accent-red border border-accent-red/20 rounded-xl font-black uppercase tracking-widest hover:bg-accent-red hover:text-white transition-all shadow-lg"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Logout Account
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setShowAuthModal(true)}
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-accent-blue/10 text-accent-blue border border-accent-blue/20 rounded-xl font-black uppercase tracking-widest hover:bg-accent-blue hover:text-white transition-all shadow-lg"
+                  >
+                    <UserIcon className="w-5 h-5" />
+                    Log In / Sign Up
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
