@@ -52,8 +52,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
       // If it's a deposit, add balance. If withdrawal, balance was already deducted during submission.
       if (req.type === 'deposit') {
         const userRef = doc(db, 'users', req.userId);
+        const bonus = req.amount * 0.3;
+        const totalUpdate = req.amount + bonus;
+        
         await updateDoc(userRef, {
-          balance: increment(req.amount)
+          balance: increment(totalUpdate)
         });
       }
 
@@ -289,6 +292,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
                       <div className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest">Amount</div>
                       <div className={`text-2xl md:text-3xl font-black italic tracking-tighter ${req.type === 'deposit' ? 'text-[#2ecc71]' : 'text-accent-red'}`}>
                         Rs. {req.amount.toLocaleString()}
+                        {req.type === 'deposit' && (
+                          <span className="text-[10px] md:text-xs block text-gray-500 font-bold uppercase not-italic tracking-widest mt-1">
+                            + Rs. {(req.amount * 0.3).toLocaleString()} Bonus (30%)
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-1">

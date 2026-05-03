@@ -34,7 +34,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         await setDoc(doc(db, 'users', firebaseUser.uid), {
           email,
           phoneNumber,
-          balance: 1000,
+          balance: 0,
           role: 'user',
           createdAt: serverTimestamp()
         });
@@ -68,7 +68,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black italic tracking-tighter text-white uppercase">
-                {isLogin ? 'Welcome Back' : 'Join Aviator Pro'}
+                {isLogin ? 'Welcome Back' : 'Join Easy Aviator'}
               </h2>
               <button 
                 onClick={onClose}

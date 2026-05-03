@@ -253,16 +253,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                   <div className="text-[10px] font-black text-accent-blue uppercase tracking-widest mb-2">Send Money To:</div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-400">EasyPaisa:</span>
-                      <span className="text-white font-bold font-mono">03001234567</span>
+                      <span className="text-gray-400">EasyPaisa Number:</span>
+                      <span className="text-white font-bold font-mono">0342 7439324</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-400">JazzCash:</span>
-                      <span className="text-white font-bold font-mono">03001234567</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-400">Holder:</span>
-                      <span className="text-white font-bold uppercase">AHMAD REZA</span>
+                      <span className="text-gray-400">Account Holder:</span>
+                      <span className="text-white font-bold uppercase">Javed Iqbal</span>
                     </div>
                   </div>
                 </div>
@@ -278,9 +274,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 >
                   <option value="" className="bg-[#1b1b21]">Select Method</option>
                   <option value="EasyPaisa" className="bg-[#1b1b21]">EasyPaisa</option>
-                  <option value="JazzCash" className="bg-[#1b1b21]">JazzCash</option>
-                  <option value="Bank" className="bg-[#1b1b21]">Bank Transfer</option>
-                  <option value="Crypto" className="bg-[#1b1b21]">Crypto (USDT)</option>
                 </select>
               </div>
 

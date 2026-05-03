@@ -92,6 +92,39 @@ function TransactionList({ userId }: { userId: string }) {
   );
 }
 
+const getMultColor = (val: number) => {
+  if (val < 1.2) return 'text-[#34b6db]'; // Light Blue
+  if (val < 2) return 'text-[#34b6db]'; // Blue
+  if (val < 10) return 'text-[#9b59b6]'; // Purple
+  return 'text-[#c0392b]'; // Dark Redish
+};
+
+const PlaneIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg">
+    {/* Body */}
+    <path d="M10 50 Q 30 40 85 45 Q 95 48 85 55 Q 30 60 10 50" fill="#ff3b3b" />
+    {/* Tail */}
+    <path d="M10 50 L 5 40 L 15 40 Z" fill="#ff3b3b" />
+    <path d="M10 50 L 5 60 L 15 60 Z" fill="#ff3b3b" />
+    {/* Wing */}
+    <path d="M40 50 L 35 30 L 55 35 L 60 50 Z" fill="#d32f2f" />
+    <path d="M40 50 L 35 70 L 55 65 L 60 50 Z" fill="#d32f2f" />
+    {/* Cockpit */}
+    <path d="M60 46 A 10 5 0 0 1 75 46" fill="white" opacity="0.6" />
+    {/* Propeller Spinner */}
+    <circle cx="88" cy="49" r="3" fill="#ffffff" />
+    {/* Propeller Blur (Simplified) */}
+    <motion.g
+      animate={{ rotate: [0, 360] }}
+      transition={{ duration: 0.1, repeat: Infinity, ease: "linear" }}
+      style={{ originX: '88px', originY: '49px' }}
+    >
+      <path d="M88 35 L 88 63" stroke="white" strokeWidth="1" opacity="0.4" />
+      <path d="M75 49 L 101 49" stroke="white" strokeWidth="1" opacity="0.4" />
+    </motion.g>
+  </svg>
+);
+
 export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     status: GameStatus.WAITING,
@@ -104,7 +137,7 @@ export default function App() {
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [timeOffset, setTimeOffset] = useState(0);
-  const [balance, setBalance] = useState(1000);
+  const [balance, setBalance] = useState(0);
   const [isSynced, setIsSynced] = useState(false);
   
   // Bet 1 States
@@ -457,7 +490,7 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setBalance(1000); // Reset for guest
+      setBalance(0); // Reset for guest
       setIsAdmin(false);
       setUser(null);
     } catch (e) {
@@ -472,7 +505,7 @@ export default function App() {
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0b] text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-accent-red border-t-transparent rounded-full animate-spin"></div>
-          <span className="font-black text-xl italic tracking-tighter uppercase text-white leading-none">AVIATOR SYNCING...</span>
+          <span className="font-black text-xl italic tracking-tighter uppercase text-white leading-none text-accent-red animate-pulse">EASY AVIATOR SYNCING...</span>
         </div>
       </div>
     );
@@ -499,7 +532,7 @@ export default function App() {
           <div className="w-8 h-8 bg-accent-red rounded flex items-center justify-center shadow-[0_0_15px_rgba(255,59,59,0.4)]">
             <Plane className="w-5 h-5 text-white fill-current -rotate-45" />
           </div>
-          <span className="font-black text-xl italic tracking-tighter uppercase text-white leading-none">AVIATOR</span>
+          <span className="font-black text-xl italic tracking-tighter uppercase text-white leading-none text-accent-red">EASY AVIATOR</span>
         </div>
 
         <div className="flex items-center gap-4">
@@ -536,67 +569,57 @@ export default function App() {
         {activeTab === 'home' && (
           <main className="max-w-[1400px] mx-auto p-2 grid grid-cols-1 lg:grid-cols-4 gap-2">
             <div className="lg:col-span-3 flex flex-col gap-2">
-              <div className="glass rounded-xl p-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <div className="glass rounded-xl p-2 h-[36px] flex items-center gap-2 overflow-x-auto no-scrollbar">
                 {gameState.history.map((h, i) => (
-                  <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${h >= 2 ? 'text-accent-blue border-accent-blue/30' : 'text-gray-400 border-white/10'}`}>{h.toFixed(2)}x</span>
+                  <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getMultColor(h)}`}>
+                    {h.toFixed(2)}x
+                  </span>
                 ))}
+                {gameState.history.length === 0 && <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest pl-2">History empty</span>}
               </div>
 
               <div className="relative aspect-video bg-[#0a0a0c] rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
                 {/* Dynamic Background Elements */}
                 <div className="absolute inset-0 pointer-events-none">
-                  {/* Scrolling Grid */}
-                  <div 
-                    className="absolute inset-0 opacity-10"
-                    style={{
-                      backgroundImage: `linear-gradient(to right, #3498db 1px, transparent 1px), linear-gradient(to bottom, #3498db 1px, transparent 1px)`,
-                      backgroundSize: '40px 40px',
-                      transform: gameState.status === GameStatus.FLYING 
-                        ? `translate(-${(gameState.currentMultiplier * 50) % 40}px, ${(gameState.currentMultiplier * 50) % 40}px)` 
-                        : 'none',
-                      transition: gameState.status === GameStatus.FLYING ? 'none' : 'transform 0.5s ease-out'
-                    }}
-                  />
+                  {/* Radial Sunburst Rays */}
+                  <div className="absolute inset-0 bg-[#0c0c14]" />
                   
-                  {/* Speed lines or stars */}
-                  <AnimatePresence>
-                    {gameState.status === GameStatus.FLYING && (
+                  {gameState.status === GameStatus.FLYING && (
+                    <>
+                      {/* Red searchlight/flare from bottom left */}
                       <motion.div 
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 overflow-hidden"
-                      >
-                        {[...Array(15)].map((_, i) => (
-                          <motion.div
-                            key={i}
-                            className="absolute h-[1px] bg-white opacity-20"
-                            style={{
-                              width: Math.random() * 100 + 50,
-                              left: Math.random() * 120 - 10 + '%',
-                              top: Math.random() * 100 + '%',
-                              transform: 'rotate(-45deg)',
-                            }}
-                            animate={{
-                              x: [-200, 200],
-                              y: [200, -200],
-                            }}
-                            transition={{
-                              duration: 1.5 / (gameState.currentMultiplier * 0.5 + 1),
-                              repeat: Infinity,
-                              ease: "linear",
-                              delay: Math.random() * 1,
-                            }}
-                          />
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Red Glow when flying */}
-                  {gameState.status === GameStatus.FLYING && (
-                    <div className="absolute inset-0 bg-gradient-to-tr from-accent-red/0 via-transparent to-accent-red/5" />
+                        animate={{ opacity: 0.4 }}
+                        className="absolute bottom-0 left-0 w-[150%] h-[150%] origin-bottom-left"
+                        style={{
+                          background: 'conic-gradient(from -40deg at 0% 100%, transparent 0deg, #ff3b3b 15deg, transparent 30deg, #ff3b3b 45deg, transparent 60deg)',
+                          filter: 'blur(40px)'
+                        }}
+                      />
+                      
+                      {/* Concentrated rays behind the plane */}
+                      <motion.div 
+                        className="absolute inset-0 opacity-20"
+                        style={{
+                          background: `conic-gradient(from 0deg at 50% 50%, transparent 0deg, #ff3b3b 5deg, transparent 15deg, #ff3b3b 25deg, transparent 35deg, #ff3b3b 45deg, transparent 55deg, #ff3b3b 65deg, transparent 75deg, #ff3b3b 85deg, transparent 95deg)`,
+                        }}
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                      />
+                    </>
                   )}
+
+                  {/* Scrolling Grid */}
+                  <div 
+                    className="absolute inset-0 opacity-5"
+                    style={{
+                      backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
+                      backgroundSize: '60px 60px',
+                      transform: gameState.status === GameStatus.FLYING 
+                        ? `translate(-${(gameState.currentMultiplier * 60) % 60}px, ${(gameState.currentMultiplier * 60) % 60}px)` 
+                        : 'none',
+                    }}
+                  />
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -616,8 +639,8 @@ export default function App() {
                   )}
 
                   {gameState.status === GameStatus.WAITING && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
-                      <div className="text-gray-500 text-xs font-black uppercase tracking-[0.4em] mb-4">Next Round In</div>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center z-10">
+                      <div className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mb-4">Wait for Next Round</div>
                       <div className="text-7xl font-black text-white italic">{gameState.timer}</div>
                     </motion.div>
                   )}
@@ -626,29 +649,46 @@ export default function App() {
                       key="multiplier"
                       initial={{ opacity: 0, scale: 0.8 }} 
                       animate={{ opacity: 1, scale: 1 }} 
-                      className="text-center z-10"
+                      className="text-center z-10 select-none"
                     >
-                      <div className="text-7xl sm:text-8xl font-black text-white italic drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]">{gameState.currentMultiplier.toFixed(2)}x</div>
+                      <div className="text-8xl sm:text-9xl font-black text-white italic tracking-tighter drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+                        {gameState.currentMultiplier.toFixed(2)}x
+                      </div>
                     </motion.div>
                   )}
                   {gameState.status === GameStatus.CRASHED && (
                     <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="text-center z-10">
-                      <div className="bg-accent-red px-6 py-2 rounded-xl mb-4 text-white font-black uppercase tracking-[0.2em] italic">Flew Away!</div>
-                      <div className="text-8xl font-black text-accent-red italic">{gameState.currentMultiplier.toFixed(2)}x</div>
+                      <div className="bg-accent-red px-6 py-2 rounded-full mb-4 text-white font-black uppercase tracking-[0.2em] italic text-xs shadow-lg">Flew Away!</div>
+                      <div className="text-8xl font-black text-accent-red italic drop-shadow-[0_0_20px_rgba(255,59,59,0.3)]">{gameState.currentMultiplier.toFixed(2)}x</div>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
                 <div className="absolute inset-0 pointer-events-none z-0">
-                  <svg className="w-full h-full">
+                  <svg className="w-full h-full" preserveAspectRatio="none">
                     {gameState.status === GameStatus.FLYING && (
-                      <motion.path
-                        d={`M 10 90 Q ${coords.x / 2} 90 ${coords.x} ${coords.y}`}
-                        fill="none"
-                        stroke="rgba(255, 59, 59, 0.4)"
-                        strokeWidth="3"
-                        strokeDasharray="8 4"
-                      />
+                      <g>
+                        {/* Red wedge fill */}
+                        <path
+                          d={`M 0 100 Q ${coords.x / 2} 100 ${coords.x} ${coords.y} L ${coords.x} 100 L 0 100 Z`}
+                          fill="url(#flightGradient)"
+                          className="opacity-60"
+                        />
+                        {/* Top curve line */}
+                        <path
+                          d={`M 0 100 Q ${coords.x / 2} 100 ${coords.x} ${coords.y}`}
+                          fill="none"
+                          stroke="#ff3939"
+                          strokeWidth="3"
+                          className="opacity-80"
+                        />
+                        <defs>
+                          <linearGradient id="flightGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#ff3939" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#ff3939" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                      </g>
                     )}
                   </svg>
                 </div>
@@ -660,27 +700,29 @@ export default function App() {
                         ? { 
                             left: `${coords.x}%`, 
                             top: `${coords.y}%`,
-                            rotate: 45 + (Math.sin(Date.now() / 200) * 5) // Pointing top-right
+                            rotate: -10 + (Math.sin(Date.now() / 200) * 3) // Slight oscillation
                           } 
                         : { 
                             scale: 0, 
                             opacity: 0,
-                            rotate: 0
+                            rotate: 0,
+                            x: 100,
+                            y: -100
                           }
                       }
                       transition={{ 
                         type: "spring", 
-                        stiffness: 100, 
-                        damping: 20,
-                        rotate: { 
-                          repeat: Infinity, 
-                          duration: 0.4, 
-                          ease: "linear" 
-                        }
+                        stiffness: 80, 
+                        damping: 15
                       }}
                       className="absolute -translate-x-1/2 -translate-y-1/2"
                     >
-                      <Plane className="w-12 h-12 sm:w-16 sm:h-16 text-accent-red fill-current drop-shadow-[0_0_20px_rgba(255,59,59,0.9)]" />
+                      <PlaneIcon className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-[0_0_25px_rgba(255,59,59,0.8)]" />
+                      
+                      {/* Flight smoke trail */}
+                      {gameState.status === GameStatus.FLYING && (
+                        <div className="absolute top-1/2 right-full h-1 w-20 bg-gradient-to-l from-accent-red/40 to-transparent blur-sm -translate-y-1/2" />
+                      )}
                     </motion.div>
                   )}
                 </div>
