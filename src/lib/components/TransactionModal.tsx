@@ -2,7 +2,46 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Wallet, Camera, Link as LinkIcon, Send } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDoc, Timestamp } from 'firebase/firestore';
+import { auth } from '../firebase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  }
+  const errorJson = JSON.stringify(errInfo);
+  console.error('Firestore Error Details:', errorJson);
+  throw new Error(errorJson);
+}
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -85,31 +124,40 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         finalScreenshotUrl = await uploadToImgBB(imageFile);
       }
 
-      if (type === 'withdrawal') {
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists() && userSnap.data().balance < parseFloat(amount)) {
-          throw new Error('Insufficient balance');
-        }
+      try {
+        if (type === 'withdrawal') {
+          const userRef = doc(db, 'users', userId);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists() && userSnap.data().balance < parseFloat(amount)) {
+            throw new Error('Insufficient balance');
+          }
 
-        await updateDoc(userRef, {
-          balance: increment(-parseFloat(amount))
-        });
+          await updateDoc(userRef, {
+            balance: increment(-parseFloat(amount))
+          });
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${userId}`);
       }
 
-      await addDoc(collection(db, 'transactions'), {
-        userId,
-        type,
-        amount: parseFloat(amount),
-        method,
-        transactionId: type === 'deposit' ? transactionId : null,
-        screenshotUrl: type === 'deposit' ? finalScreenshotUrl : null,
-        accountNumber: type === 'withdrawal' ? accountNumber : null,
-        accountHolder: type === 'withdrawal' ? accountHolder : null,
-        status: 'pending',
-        seen: false,
-        createdAt: serverTimestamp()
-      });
+      try {
+        await addDoc(collection(db, 'transactions'), {
+          userId,
+          userEmail: auth.currentUser?.email || '',
+          type,
+          amount: parseFloat(amount),
+          method,
+          transactionId: type === 'deposit' ? transactionId : null,
+          screenshotUrl: type === 'deposit' ? finalScreenshotUrl : null,
+          accountNumber: type === 'withdrawal' ? accountNumber : null,
+          accountHolder: type === 'withdrawal' ? accountHolder : null,
+          status: 'pending',
+          seen: false,
+          createdAt: serverTimestamp()
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'transactions');
+      }
 
       onClose();
       alert('Request sent successfully!');
@@ -121,7 +169,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
       setAccountNumber('');
       setAccountHolder('');
     } catch (err: any) {
-      setError(err.message);
+      let displayError = err.message;
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.error && parsed.error.includes('Missing or insufficient permissions')) {
+          displayError = "Submission failed: Security rules blocked this request. Please contact support or try again.";
+        }
+      } catch (e) {
+        // Not a JSON error, use raw message
+      }
+      setError(displayError);
     } finally {
       setLoading(false);
     }
