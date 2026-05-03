@@ -295,6 +295,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
                       <div className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest">Method</div>
                       <div className="text-sm md:text-lg font-black text-white uppercase">{req.method}</div>
                     </div>
+                    <div className="space-y-1">
+                      <div className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest">User Balance</div>
+                      <div className="text-sm md:text-lg font-black text-white uppercase italic">
+                        Rs. {(req.userBalanceSnapshot ?? 0).toLocaleString()}
+                      </div>
+                    </div>
                     <div className="space-y-1 col-span-1 sm:col-span-2">
                        <div className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest">Account Details</div>
                        <div className="text-xs md:text-sm font-bold text-gray-400 font-mono leading-relaxed">

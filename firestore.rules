@@ -52,7 +52,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && incoming().userId == request.auth.uid;
       allow update: if isAdmin();
-      allow delete: if false;
+      allow delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
     }
 
     match /admins/{userId} {

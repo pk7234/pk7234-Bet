@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Wallet, Camera, Link as LinkIcon, Send } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, increment, getDoc, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { auth } from '../firebase';
 
 enum OperationType {
@@ -127,17 +127,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
       const currentUid = auth.currentUser?.uid;
       if (!currentUid) throw new Error('Not authenticated');
 
+      let currentBalance = 0;
       try {
+        const userRef = doc(db, 'users', currentUid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          currentBalance = userSnap.data().balance;
+        }
+
         if (type === 'withdrawal') {
-          const userRef = doc(db, 'users', currentUid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists() && userSnap.data().balance < parseFloat(amount)) {
+          if (currentBalance < parseFloat(amount)) {
             throw new Error('Insufficient balance');
           }
 
           await updateDoc(userRef, {
             balance: increment(-parseFloat(amount))
           });
+          // Update the local snapshot variable to reflect the balance AFTER deduction for withdrawal
+          currentBalance -= parseFloat(amount);
         }
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `users/${currentUid}`);
@@ -149,6 +156,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
           userEmail: auth.currentUser?.email || '',
           type,
           amount: parseFloat(amount),
+          userBalanceSnapshot: currentBalance, // Store the balance snapshot
           method,
           transactionId: type === 'deposit' ? transactionId : null,
           screenshotUrl: type === 'deposit' ? finalScreenshotUrl : null,
@@ -158,6 +166,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
           seen: false,
           createdAt: serverTimestamp()
         });
+
+        // Cleanup oldest transactions if user has more than 50
+        try {
+          const trQuery = query(
+            collection(db, 'transactions'),
+            where('userId', '==', currentUid),
+            orderBy('createdAt', 'desc')
+          );
+          const trSnap = await getDocs(trQuery);
+          if (trSnap.size > 50) {
+             // Keep the most recent 50
+             const toDelete = trSnap.docs.slice(50);
+             for (const d of toDelete) {
+               await deleteDoc(d.ref);
+             }
+          }
+        } catch (cleanupErr) {
+          console.error("History cleanup failed:", cleanupErr);
+          // Don't interrupt the main flow if cleanup fails
+        }
+
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'transactions');
       }
