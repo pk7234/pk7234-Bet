@@ -117,8 +117,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               )}
 
               {error && (
-                <div className="text-accent-red text-xs font-bold bg-accent-red/10 border border-accent-red/20 rounded-lg p-3">
-                  {error}
+                <div className="text-accent-red text-[11px] font-bold bg-accent-red/10 border border-accent-red/20 rounded-xl p-4 leading-relaxed">
+                  {error.includes('auth/invalid-credential') 
+                    ? "Invalid email or password. If you haven't created an account yet, please use 'SIGN UP' instead of 'SIGN IN'." 
+                    : error}
                 </div>
               )}
 

@@ -321,6 +321,10 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
       
+      // Proactive admin check based on email
+      const isEmailAdmin = u?.email === 'pkr4065806@gmail.com' || u?.email === 'fast8585100@gmail.com';
+      setIsAdmin(!!isEmailAdmin);
+
       // Cleanup previous profile listener if any
       if (unsubscribeProfile) {
         unsubscribeProfile();
@@ -336,7 +340,8 @@ export default function App() {
             setBalance(prev => prev === data.balance ? prev : data.balance);
             setIsAdmin(prev => {
               const isEmailAdmin = u?.email === 'pkr4065806@gmail.com' || u?.email === 'fast8585100@gmail.com';
-              const newIsAdmin = data.role === 'admin' || isEmailAdmin;
+              const isRoleAdmin = data.role === 'admin';
+              const newIsAdmin = isRoleAdmin || isEmailAdmin;
               return newIsAdmin === prev ? prev : newIsAdmin;
             });
           }
