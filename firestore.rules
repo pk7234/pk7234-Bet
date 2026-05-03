@@ -43,18 +43,18 @@ service cloud.firestore {
     }
 
     function isValidTransaction(data) {
-      return data.userId is string && data.userId.size() <= 128 &&
+      return data.userId is string &&
              data.type in ['deposit', 'withdrawal'] &&
              data.amount is number && data.amount > 0 &&
              data.status in ['pending', 'approved', 'rejected'] &&
              (!('userEmail' in data) || data.userEmail is string) &&
-             (!('method' in data) || data.method == null || (data.method is string && data.method.size() <= 100)) &&
-             (!('transactionId' in data) || data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 512)) &&
-             (!('screenshotUrl' in data) || data.screenshotUrl == null || (data.screenshotUrl is string && data.screenshotUrl.size() <= 4096)) &&
-             (!('accountNumber' in data) || data.accountNumber == null || (data.accountNumber is string && data.accountNumber.size() <= 200)) &&
-             (!('accountHolder' in data) || data.accountHolder == null || (data.accountHolder is string && data.accountHolder.size() <= 200)) &&
+             (!('method' in data) || data.method == null || data.method is string) &&
+             (!('transactionId' in data) || data.transactionId == null || data.transactionId is string) &&
+             (!('screenshotUrl' in data) || data.screenshotUrl == null || data.screenshotUrl is string) &&
+             (!('accountNumber' in data) || data.accountNumber == null || data.accountNumber is string) &&
+             (!('accountHolder' in data) || data.accountHolder == null || data.accountHolder is string) &&
              (!('seen' in data) || data.seen is bool) &&
-             (!('processedAt' in data) || data.processedAt is timestamp) &&
+             (!('processedAt' in data) || data.processedAt is timestamp || data.processedAt == null) &&
              (!('createdAt' in data) || data.createdAt is timestamp);
     }
 
@@ -117,8 +117,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && 
                       incoming().userId == request.auth.uid &&
                       incoming().status == 'pending' &&
-                      isValidTransaction(incoming()) &&
-                      incoming().createdAt == request.time;
+                      isValidTransaction(incoming());
 
       // Update: Only Admins can approve/reject or mark as seen
       allow update: if isAdmin() && 

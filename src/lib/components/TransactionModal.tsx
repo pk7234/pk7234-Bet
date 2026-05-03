@@ -124,9 +124,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         finalScreenshotUrl = await uploadToImgBB(imageFile);
       }
 
+      const currentUid = auth.currentUser?.uid;
+      if (!currentUid) throw new Error('Not authenticated');
+
       try {
         if (type === 'withdrawal') {
-          const userRef = doc(db, 'users', userId);
+          const userRef = doc(db, 'users', currentUid);
           const userSnap = await getDoc(userRef);
           if (userSnap.exists() && userSnap.data().balance < parseFloat(amount)) {
             throw new Error('Insufficient balance');
@@ -137,12 +140,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
           });
         }
       } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${userId}`);
+        handleFirestoreError(err, OperationType.WRITE, `users/${currentUid}`);
       }
 
       try {
         await addDoc(collection(db, 'transactions'), {
-          userId,
+          userId: currentUid,
           userEmail: auth.currentUser?.email || '',
           type,
           amount: parseFloat(amount),
