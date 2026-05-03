@@ -332,9 +332,8 @@ export default function App() {
             setBalance(prev => prev === data.balance ? prev : data.balance);
             setIsAdmin(prev => {
               const isEmailAdmin = u?.email === 'pkr4065806@gmail.com' || u?.email === 'fast8585100@gmail.com';
-              const isRoleAdmin = data.role === 'admin';
-              const newIsAdmin = isRoleAdmin || isEmailAdmin;
-              return newIsAdmin === prev ? prev : newIsAdmin;
+              // We intentionally ignore data.role here for absolute security against role injection
+              return isEmailAdmin === prev ? prev : isEmailAdmin;
             });
           }
         }, (err) => {

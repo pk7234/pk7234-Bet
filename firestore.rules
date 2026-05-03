@@ -15,17 +15,19 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Hardcoded admin email for convenience and fallback check
+      // Hardcoded admin emails are the ONLY source of truth for admin status
       return isSignedIn() && (
         request.auth.token.email == 'pkr4065806@gmail.com' ||
-        request.auth.token.email == 'fast8585100@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        request.auth.token.email == 'fast8585100@gmail.com'
       );
     }
 
     function incoming() {
       return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
     }
 
     // ------------------------------------------------------------
@@ -42,8 +44,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && incoming().role == 'user'; // Force role to user on creation
+      allow update: if (isOwner(userId) && incoming().role == existing().role) || isAdmin(); // Prevent role change by owner
     }
 
     match /transactions/{transId} {

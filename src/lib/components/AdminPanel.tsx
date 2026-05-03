@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Shield, Clock, CheckCircle, ArrowUpCircle, ArrowDownCircle, ExternalLink, Filter, Search, Image as ImageIcon } from 'lucide-react';
-import { db } from '../firebase';
+import { X, Shield, Clock, CheckCircle, ArrowUpCircle, ArrowDownCircle, ExternalLink, Filter, Search, Image as ImageIcon, Lock } from 'lucide-react';
+import { db, auth } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, increment, getDoc, where } from 'firebase/firestore';
 
 interface AdminPanelProps {
@@ -15,9 +15,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'deposit' | 'withdrawal'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isActuallyAdmin, setIsActuallyAdmin] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
+    
+    // Internal verification
+    const user = auth.currentUser;
+    const isAdmin = user?.email === 'pkr4065806@gmail.com' || user?.email === 'fast8585100@gmail.com';
+    setIsActuallyAdmin(isAdmin);
+
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
     
     // Listen to all transactions, sorted by time
     const q = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
@@ -103,6 +114,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose }) => {
   });
 
   if (!isOpen) return null;
+
+  if (!isActuallyAdmin && !loading) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-[#0c0c10] flex flex-col items-center justify-center font-sans p-8 text-center">
+        <div className="p-6 bg-accent-red/20 rounded-full mb-6">
+          <Lock className="w-16 h-16 text-accent-red" />
+        </div>
+        <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase mb-4">ACCESS DENIED</h2>
+        <p className="text-gray-500 uppercase font-bold tracking-widest text-xs max-w-xs leading-loose">
+          You do not have administrative privileges to access this panel.
+        </p>
+        <button 
+          onClick={onClose}
+          className="mt-8 px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black uppercase tracking-widest border border-white/10 transition-all"
+        >
+          Close Panel
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#0c0c10] flex flex-col font-sans overflow-hidden">
