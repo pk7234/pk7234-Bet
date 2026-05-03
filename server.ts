@@ -116,7 +116,7 @@ async function startServer() {
         state.startTime = now;
         
         // Only add to history if it's not a duplicate (safety check)
-        if (state.history.length === 0 || state.history[0] !== state.crashPoint || (state.history.length > 1 && state.history[1] === state.crashPoint)) {
+        if (state.history.length === 0 || state.history[0] !== state.crashPoint) {
            state.history = [state.crashPoint, ...state.history].slice(0, 50);
         }
         
@@ -131,7 +131,7 @@ async function startServer() {
             history: state.history,
             timer: 0,
             lastUpdated: serverTimestamp()
-          });
+          }, { merge: true });
         } catch (e) {
           console.error("Failed to save state to Firebase:", e);
         }
@@ -150,9 +150,10 @@ async function startServer() {
             startTime: state.startTime,
             crashPoint: 0,
             timer: 5,
+            history: state.history,
             currentMultiplier: 1.0,
             lastUpdated: serverTimestamp()
-          });
+          }, { merge: true });
         } catch (e) {
           console.error("Failed to sync transition to Firebase:", e);
         }
@@ -171,8 +172,9 @@ async function startServer() {
         crashPoint: state.crashPoint,
         currentMultiplier: state.currentMultiplier,
         timer: state.timer,
+        history: state.history, // Always include history to prevent client loss
         lastUpdated: serverTimestamp()
-      });
+      }, { merge: true });
     } catch (e) {
       // console.error("Periodic sync failed:", e.message);
     }

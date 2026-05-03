@@ -93,17 +93,17 @@ function TransactionList({ userId }: { userId: string }) {
 }
 
 const getMultColor = (val: number) => {
-  if (val < 1.2) return 'text-[#34b6db]'; // Light Blue
-  if (val < 2) return 'text-[#9b59b6]'; // Purple
-  if (val < 10) return 'text-[#34b6db]'; // Most Aviator apps use cyan for low, then purple, then pink/red
-  return 'text-[#c0392b]'; // Dark Red
+  if (val < 2.0) return 'text-[#34b6db]'; // Light Blue/Cyan
+  if (val < 10.0) return 'text-[#913dff]'; // Purple
+  return 'text-[#c01d2e]'; // Red
 };
 
-// Based on standard Aviator colors
-const getHistoryColor = (val: number) => {
-  if (val < 2) return 'text-[#34b6db]'; // Blue
-  if (val < 10) return 'text-[#913dff]'; // Purple
-  return 'text-[#c01d2e]'; // Red
+// Audio URLs (Public stable assets)
+const AUDIO_URLS = {
+  ENGINE: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
+  CRASH: 'https://assets.mixkit.co/active_storage/sfx/1105/1105-preview.mp3',
+  BET: 'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3',
+  WIN: 'https://assets.mixkit.co/active_storage/sfx/2017/2017-preview.mp3'
 };
 
 const PlaneIcon = ({ className }: { className?: string }) => (
@@ -167,6 +167,27 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  
+  // Audio Refs
+  const engineAudio = useRef<HTMLAudioElement | null>(null);
+  const betAudio = useRef<HTMLAudioElement | null>(null);
+  const winAudio = useRef<HTMLAudioElement | null>(null);
+  const crashAudio = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    engineAudio.current = new Audio(AUDIO_URLS.ENGINE);
+    engineAudio.current.loop = true;
+    engineAudio.current.volume = 0.3;
+    
+    betAudio.current = new Audio(AUDIO_URLS.BET);
+    winAudio.current = new Audio(AUDIO_URLS.WIN);
+    crashAudio.current = new Audio(AUDIO_URLS.CRASH);
+    
+    return () => {
+      engineAudio.current?.pause();
+      engineAudio.current = null;
+    };
+  }, []);
 
   const triggerNotification = (msg: string) => {
     setNotification(msg);
@@ -348,6 +369,22 @@ export default function App() {
  // Only runs when sync status or timeOffset changes
 
 
+  // Engine Sound Logic
+  useEffect(() => {
+    if (gameState.status === GameStatus.FLYING) {
+      engineAudio.current?.play().catch(() => {
+        // Autoplay blocked usually, handle silently
+      });
+    } else {
+      engineAudio.current?.pause();
+      if (engineAudio.current) engineAudio.current.currentTime = 0;
+      
+      if (gameState.status === GameStatus.CRASHED && lastStatusRef.current === GameStatus.FLYING) {
+        crashAudio.current?.play().catch(() => {});
+      }
+    }
+  }, [gameState.status]);
+
   // Auth Listener
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -442,6 +479,8 @@ export default function App() {
     setBalance(prev => prev - amount);
     if (num === 1) setBet1({ amount, active: true });
     else setBet2({ amount, active: true });
+    
+    betAudio.current?.play().catch(() => {});
 
     if (user) {
       const userRef = doc(db, 'users', user.uid);
@@ -489,6 +528,8 @@ export default function App() {
     if (num === 1) setBet1(null);
     else setBet2(null);
 
+    winAudio.current?.play().catch(() => {});
+    
     setWinMessage({ amount: win, mult });
     setTimeout(() => setWinMessage(null), 2500);
     
