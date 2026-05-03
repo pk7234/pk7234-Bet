@@ -39,7 +39,7 @@ service cloud.firestore {
       return data.email is string && data.email.size() <= 100 &&
              data.balance is number && data.balance >= 0 &&
              data.role in ['user', 'admin'] &&
-             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
+             (!('phoneNumber' in data) || data.phoneNumber == null || (data.phoneNumber is string && data.phoneNumber.size() <= 20));
     }
 
     function isValidTransaction(data) {
@@ -47,12 +47,13 @@ service cloud.firestore {
              data.type in ['deposit', 'withdrawal'] &&
              data.amount is number && data.amount > 0 &&
              data.status in ['pending', 'approved', 'rejected'] &&
-             (!('method' in data) || (data.method is string && data.method.size() <= 50)) &&
-             (!('transactionId' in data) || (data.transactionId is string && data.transactionId.size() <= 256)) &&
-             (!('screenshotUrl' in data) || (data.screenshotUrl is string && data.screenshotUrl.size() <= 2048)) &&
-             (!('accountNumber' in data) || (data.accountNumber is string && data.accountNumber.size() <= 100)) &&
-             (!('accountHolder' in data) || (data.accountHolder is string && data.accountHolder.size() <= 100)) &&
-             (!('seen' in data) || data.seen is bool);
+             (!('method' in data) || data.method == null || (data.method is string && data.method.size() <= 50)) &&
+             (!('transactionId' in data) || data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 256)) &&
+             (!('screenshotUrl' in data) || data.screenshotUrl == null || (data.screenshotUrl is string && data.screenshotUrl.size() <= 2048)) &&
+             (!('accountNumber' in data) || data.accountNumber == null || (data.accountNumber is string && data.accountNumber.size() <= 100)) &&
+             (!('accountHolder' in data) || data.accountHolder == null || (data.accountHolder is string && data.accountHolder.size() <= 100)) &&
+             (!('seen' in data) || data.seen is bool) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
     }
 
     function isValidGameHistory(data) {

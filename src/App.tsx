@@ -90,11 +90,8 @@ export default function App() {
 
     // 3. Absolute Fallback: If no sync happens in 3s, start local
     const fallbackTimer = setTimeout(() => {
-      if (!isSynced) {
-        console.warn("Global sync timed out. Starting local-only engine.");
-        setIsSynced(true);
-        setInitialLoading(false);
-      }
+      setInitialLoading(false);
+      setIsSynced(true);
     }, 3000);
 
     // 2. Real-time Firestore sync for the shared state
@@ -103,7 +100,7 @@ export default function App() {
         const data = snap.data();
         setGameState(prev => {
           // If we receive a status change or we haven't synced yet, take the whole state
-          if (!isSynced || prev.status !== data.status) {
+          if (prev.status !== data.status) {
             return {
               ...prev,
               ...data,
@@ -130,24 +127,17 @@ export default function App() {
         clearTimeout(fallbackTimer);
       }
     }, (err) => {
-      const errInfo = {
-        error: err.message || String(err),
-        operationType: 'get',
-        path: 'game/state',
-        authInfo: {
-          userId: auth.currentUser?.uid,
-          email: auth.currentUser?.email,
-          emailVerified: auth.currentUser?.emailVerified
-        }
-      };
-      console.error('Firestore Error:', JSON.stringify(errInfo));
+      console.error('Firestore Error:', err);
+      // Even on error, allow local engine to start
+      setInitialLoading(false);
+      setIsSynced(true);
     });
 
     return () => {
       unsubscribe();
       clearTimeout(fallbackTimer);
     };
-  }, [isSynced]);
+  }, []);
 
   // Engine Animation Loop (Local prediction between syncs)
   useEffect(() => {
