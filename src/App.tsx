@@ -79,6 +79,15 @@ export default function App() {
 
         if (prev.status === GameStatus.WAITING) {
           const remaining = Math.max(0, 5 - Math.floor(elapsed));
+          if (remaining <= 0) {
+            return {
+              ...prev,
+              status: GameStatus.FLYING,
+              startTime: now,
+              currentMultiplier: 1.0,
+              crashPoint: generateCrashPoint() // Local random generation if not synced
+            };
+          }
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
@@ -90,6 +99,7 @@ export default function App() {
               ...prev,
               status: GameStatus.CRASHED,
               currentMultiplier: prev.crashPoint,
+              history: [prev.crashPoint, ...prev.history].slice(0, 10),
               startTime: now,
               timer: 3
             };
@@ -100,6 +110,15 @@ export default function App() {
 
         if (prev.status === GameStatus.CRASHED) {
           const remaining = Math.max(0, 3 - Math.floor(elapsed));
+          if (remaining <= 0) {
+            return {
+              ...prev,
+              status: GameStatus.WAITING,
+              startTime: now,
+              timer: 5,
+              currentMultiplier: 1.0
+            };
+          }
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
