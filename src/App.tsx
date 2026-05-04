@@ -144,6 +144,7 @@ export default function App() {
     history: [], // Clear mock history
     timer: 0
   });
+  const [localTimer, setLocalTimer] = useState(4);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [timeOffset, setTimeOffset] = useState(0);
@@ -317,7 +318,7 @@ export default function App() {
         const elapsed = (now - prev.startTime) / 1000;
 
         if (prev.status === GameStatus.WAITING) {
-          const remaining = Math.max(0, 5 - Math.floor(elapsed));
+          const remaining = Math.max(0, 4 - Math.floor(elapsed));
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
@@ -325,24 +326,22 @@ export default function App() {
         if (prev.status === GameStatus.FLYING) {
           const actualMult = Math.max(1.0, Math.pow(1.08, elapsed)); 
           
-          // Local Transition to CRASHED to avoid the "pause" tell
           if (prev.crashPoint > 0 && actualMult >= prev.crashPoint) {
             return { 
               ...prev, 
               status: GameStatus.CRASHED,
               currentMultiplier: prev.crashPoint,
               startTime: now,
-              timer: 3
+              timer: 2
             };
           }
           
-          // Avoid tiny updates that don't change the UI display significantly
           if (Math.abs(prev.currentMultiplier - actualMult) < 0.001) return prev;
           return { ...prev, currentMultiplier: actualMult };
         }
 
         if (prev.status === GameStatus.CRASHED) {
-          const remaining = Math.max(0, 3 - Math.floor(elapsed));
+          const remaining = Math.max(0, 2 - Math.floor(elapsed));
           if (prev.timer === remaining) return prev;
           return { ...prev, timer: remaining };
         }
